@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from shapely import wkt
 import json
+from scipy import interpolate
 
 
 class RoadGraph:
@@ -37,7 +38,6 @@ class RoadGraph:
             self.graph = G
 
     def save(self):
-
             self.df_nodes.to_csv('./map_data/' + self.map_name+'_nodes.csv')
             self.df_edges.to_csv('./map_data/' + self.map_name + '_edges.csv')
             ox.io.save_graphml(self.graph, filepath='./map_data/'+self.map_name+'.graphml')
@@ -47,6 +47,23 @@ class RoadGraph:
 
             with open('map_data/'+self.map_name+'.json', 'w') as f:
                 json.dump(map_info, f)
+
+    def create_routes(self, waypoints):
+        if len(waypoints) < 2:
+            return None
+        node_ids_list = []
+        df_nodes_routes = []
+        df_edges_routes = []
+        for i in range(len(waypoints)-1):
+            start_coord = waypoints[i]
+            end_coord = waypoints[i+1]
+            node_ids, df_nodes_route, df_edges_route = self.create_one_route(start_coord, end_coord)
+            df_nodes_routes.append(df_nodes_route)
+            node_ids_list.append(node_ids)
+            df_edges_routes.append(df_edges_route)
+        return Route(node_ids_list, df_nodes_routes, df_edges_routes)
+
+
 
     def create_one_route(self, start_coord, end_coord):
         """ compute shortest path for a given starting and ending point, returns goe dataframe node_ids (df_nodes_route) and osmid of the node_ids (node_ids) """
@@ -96,8 +113,8 @@ class RoadGraph:
         df_nodes_route['con_highway_vals'] = con_highway_vals
         df_nodes_route['prev_edge_speed_kph'] = prev_edge_speeds
 
-        route = Route(node_ids, df_nodes_route, df_edges_route)
-        return route
+        # route = Route(node_ids, df_nodes_route, df_edges_route)
+        return node_ids, df_nodes_route, df_edges_route
 
     # def plot(self):       # todo: fix me
     #     ox.plot_graph_folium(self.graph, popup_attribute="name", weight=2, color="#8b0000")
@@ -108,19 +125,42 @@ class RoadGraph:
         if len(node_ids) ==1:
             ox.plot.plot_graph_route(self.graph, node_ids[0], route_color='r', route_linewidth=4, route_alpha=0.5, orig_dest_size=100,
                                  ax=None)
+            plt.show()
+            # route_map = ox.plot_route_folium(G, route1, route_color='#ff0000', opacity=0.5)
         elif len(node_ids) > 1:
-            ox.plot.plot_graph_route(self.graph, node_ids)       ## todo: finish this~!
-        plt.show()
+            ox.plot.plot_graph_routes(self.graph, node_ids, route_colors='green', node_size=10)       ## todo: finish this~!
+            plt.show()
 
 
 class Route():
     def __init__(self, node_ids, df_nodes_route, df_edges_route):
-        self.node_ids = [node_ids]
-        self.df_nodes_route = [df_nodes_route]
-        self.df_edges_route = [df_edges_route]
+        if isinstance(node_ids, list):  # todo: other checks to make sure all same size etc
+            self.node_ids = node_ids
+        else:
+            self.node_ids = [node_ids]
+        if isinstance(df_nodes_route, list):
+            self.df_nodes_route= df_nodes_route
+        else:
+            self.df_nodes_route = [df_nodes_route]
+        if isinstance(df_edges_route, list):
+            self.df_edges_route = df_edges_route
+        else:
+            self.df_edges_route = [df_edges_route]
         self.ref_distances = []
         self.ref_speeds = []
-        self.speed_profiles = []
+        self.route_profiles = []
+
+    def create_elevation_profile(self, method='linear'):
+        # make sure speed profiles have already been added
+        if self.route_profiles:
+            for (nodes, profile) in zip(self.df_nodes_route, self.route_profiles):
+                node_elevations = nodes['elevation'].to_numpy()
+                node_distances = nodes['distance_travelled'].to_numpy()
+                distances = profile['distance'].to_numpy()
+                f = interpolate.interp1d(node_distances, node_elevations, kind=method, fill_value="extrapolate")
+                elevations = f(distances)
+                # self.route_profiles[i]['elevation'] = elevations
+                profile['elevation'] = elevations
 
     def create_trapezoidal_speed_profile(self, max_accel=1.5, max_deccel=2.5, dist_res=5):
         max_deccel = np.abs(max_deccel)     # enforce this is a positve number
@@ -201,7 +241,7 @@ class Route():
             data = np.vstack((t,a,v,d))
             speed_profile = pd.DataFrame(data=data.T, columns=['time','acceleration','velocity','distance'])
 
-            self.speed_profiles.append(speed_profile)
+            self.route_profiles.append(speed_profile)
 
     def create_reference_speeds(self, method='psuedo'):
         if method=='psuedo':
@@ -306,14 +346,19 @@ if __name__=='__main__':
 
     ##
     start_point = '23 Maitland Road, Mayfield NSW'
+    mid_point = '66 Robert St, Wickham, NSW'
     end_point = '142 Doran St, Carrington, NSW'
 
     start_coords = ox.geocoder.geocode(start_point)
+    mid_coords = ox.geocoder.geocode(mid_point)
     end_coords = ox.geocoder.geocode(end_point)
 
+    # waypoints = [start_coords, end_coords]
+    waypoints = [start_coords, mid_coords, end_coords]
 
-    route = roadGraph.create_one_route(start_coords, end_coords)
 
+    # route = roadGraph.create_one_route(start_coords, end_coords)
+    route = roadGraph.create_routes(waypoints)
     # ox.plot.plot_graph_routes(roadGraph.graph, route.node_ids)
     # plt.show()
 
@@ -323,18 +368,44 @@ if __name__=='__main__':
 
     route.create_trapezoidal_speed_profile()
 
+    route.create_elevation_profile()
+    # todo: add elevations
+
+    plt.subplot(4, 1, 1)
+    plt.plot(route.route_profiles[0]['time'],route.route_profiles[0]['acceleration'])
+    plt.xlabel('time (s)')
+    plt.ylabel('acceleration (m/s^2)')
+
+    plt.subplot(4, 1, 2)
+    plt.plot(route.route_profiles[0]['time'],route.route_profiles[0]['velocity'])
+    plt.xlabel('time (s)')
+    plt.ylabel('velocity (m/s)')
+
+    plt.subplot(4, 1, 3)
+    plt.plot(route.route_profiles[0]['time'],route.route_profiles[0]['distance'])
+    plt.xlabel('time (s)')
+    plt.ylabel('distance (m)')
+
+
+    plt.subplot(4, 1, 4)
+    plt.plot(route.route_profiles[0]['time'],route.route_profiles[0]['elevation'])
+    plt.xlabel('time (s)')
+    plt.ylabel('elevation (m)')
+    plt.show()
+
     plt.subplot(3, 1, 1)
-    plt.plot(route.speed_profiles[0]['time'],route.speed_profiles[0]['acceleration'])
+    plt.plot(route.route_profiles[1]['time'],route.route_profiles[1]['acceleration'])
     plt.xlabel('time (s)')
     plt.ylabel('acceleration (m/s^2)')
 
     plt.subplot(3, 1, 2)
-    plt.plot(route.speed_profiles[0]['time'],route.speed_profiles[0]['velocity'])
+    plt.plot(route.route_profiles[1]['time'],route.route_profiles[1]['velocity'])
     plt.xlabel('time (s)')
     plt.ylabel('velocity (m/s)')
 
     plt.subplot(3, 1, 3)
-    plt.plot(route.speed_profiles[0]['time'],route.speed_profiles[0]['distance'])
+    plt.plot(route.route_profiles[1]['time'],route.route_profiles[1]['distance'])
     plt.xlabel('time (s)')
     plt.ylabel('distance (m)')
     plt.show()
+
