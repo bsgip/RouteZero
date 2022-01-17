@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # from IPython.display import IFrame This only works in fucking jupyter
 # elevation_data = srtm.get_data()    # instanciate srtm.py
 
-from route_generator import RoadGraph
+from route import RoadGraph
 
 map_name = 'test'
 map_center = '23 Maitland Road, Mayfield NSW'
@@ -27,7 +27,7 @@ end_point = '142 Doran St, Carrington, NSW'
 start_coords = ox.geocoder.geocode(start_point)
 end_coords = ox.geocoder.geocode(end_point)
 
-route, df_nodes_route, df_edges_route = roadGraph.create_one_route(start_coords, end_coords)
+route, df_nodes_route, df_edges_route = roadGraph.create_segment(start_coords, end_coords)
 roadGraph.plot_route(route)
 
 
