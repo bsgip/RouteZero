@@ -43,6 +43,7 @@ sydney_bus_stops = stops.loc[stops.stop_id.isin(sydney_bus_stop_times['stop_id']
 # cut down shapes based on shape id from above
 sydney_bus_shapes = shapes.loc[shapes.shape_id.isin(sydney_bus_trips['shape_id'])]
 
+
 ## get frequency of stop and lines for specific time windows (given by cuttoffs) frequency is how many minutes between a bus
 cutoffs = [0,6,9,15,19,22,24]       # times of day into which to aggregate the data (i.e. bin edges
 stop_freq = gtfs.stops_freq(sydney_bus_stop_times, sydney_bus_stops, cutoffs=cutoffs)
