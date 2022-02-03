@@ -6,7 +6,7 @@ import pandas as pd
 pd.options.display.max_columns = None
 import geopy.distance
 
-# todo: do we also need to keep either agency id information or route_long_name information?
+# todo: add a location tag to route data
 def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=True, route_desc=None):
     # import all gtfs route data from file
     routes, stops, stop_times, trips, shapes = gtfs.import_gtfs(gtfs_file, busiest_date=busiest_day)
@@ -86,13 +86,22 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
     # get elevation information
     elevation_profiles = elevation_from_shape(subset_shapes)
 
-    # get average grade and add to route summaries
+    # get average grade and add to route summaries and also add route start location
     route_summaries['av_grade_%'] = np.nan
+    start_locations = []
     for i, r in route_summaries.iterrows():
         els = elevation_profiles[r['shape_id']].values
         dists = elevation_profiles[r['shape_id']].index.to_numpy()
         av_grade = (els[-1] - els[0]) / (dists[-1] - dists[0]) * 100    # average grade as percent
         route_summaries.loc[i, 'av_grade_%'] = av_grade
+
+        start_locations.append(subset_shapes[subset_shapes.shape_id==r['shape_id']]['geometry'].values[0].coords[0])
+
+    route_summaries['start_location'] = start_locations
+
+
+    # add location data
+
 
     # below is unused code to get grade along the route rather than just average
     # shape_id = '74-320-sj2-1.4.H'
