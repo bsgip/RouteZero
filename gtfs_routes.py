@@ -1,8 +1,10 @@
 import numpy as np
 import gtfs_functions as gtfs
 import matplotlib.pyplot as plt
+import srtm
 import pandas as pd
 pd.options.display.max_columns = None
+import geopy.distance
 
 # todo: do we also need to keep either agency id information or route_long_name information?
 def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=True, route_desc=None):
@@ -81,9 +83,46 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
 
     route_summaries['stops_km'] = route_summaries['num_stops'] / (route_summaries['trip_distance']/1000)
 
-    return route_summaries
+    # get elevation information
+    elevation_profiles = elevation_from_shape(subset_shapes)
 
-# def route_elevation_data(shape_ids):
+    # get average grade and add to route summaries
+    route_summaries['av_grade_%'] = np.nan
+    for i, r in route_summaries.iterrows():
+        els = elevation_profiles[r['shape_id']].values
+        dists = elevation_profiles[r['shape_id']].index.to_numpy()
+        av_grade = (els[-1] - els[0]) / (dists[-1] - dists[0]) * 100    # average grade as percent
+        route_summaries.loc[i, 'av_grade_%'] = av_grade
+
+    # below is unused code to get grade along the route rather than just average
+    # shape_id = '74-320-sj2-1.4.H'
+    # els = elevation_profiles[shape_id].values
+    # dists = elevation_profiles[shape_id].index.to_numpy()
+    # dist_diff = dists[1:]-dists[:-1]
+    # els_diff = (els[1:]-els[:-1])[dist_diff!=0]
+    # dist_diff = dist_diff[dist_diff!=0]
+    # remember when averaging individual grades that they need to be weighted by segment length
+
+    return route_summaries, subset_shapes, elevation_profiles
+
+def elevation_from_shape(shapes):
+    elevation_data = srtm.get_data()
+    elevation_profiles = {}
+    for i, r in shapes.iterrows():
+        el = []
+        dist = []
+        last_coord = None
+        for coord in r['geometry'].coords:
+            el.append(elevation_data.get_elevation(coord[1], coord[0]))
+            if last_coord:
+                dist.append(geopy.distance.distance((coord[1], coord[0]), (last_coord[1], last_coord[0])).m +dist[-1])
+            else:
+                dist.append(0)
+            last_coord = coord + ()
+        elevation_profiles[r['shape_id']] = pd.Series(np.array(el), index=dist)
+
+    return elevation_profiles
+
 
 if __name__ == "__main__":
     gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
@@ -91,7 +130,7 @@ if __name__ == "__main__":
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
     cutoffs = [0, 6, 9, 15, 19, 22, 24]     # optional input for splitting up the route summary information into time windows
 
-    route_summaries = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest_day=True, route_desc=route_desc)
+    route_summaries,subset_shapes, elevation_profiles = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest_day=True, route_desc=route_desc)
 
     if cutoffs:
         plt.subplot(2,1,1)
@@ -108,5 +147,27 @@ if __name__ == "__main__":
         plt.title('speed vs time for route id {}'.format(t['route_id'].unique()[0]))
         plt.tight_layout()
         plt.show()
+
+    plt.plot(elevation_profiles[list(elevation_profiles.keys())[3]])
+    plt.show()
+
+    el = elevation_profiles[list(elevation_profiles.keys())[0]]
+
+    # get average grade
+    # shape_id = '74-320-sj2-1.4.H'
+    # els = elevation_profiles[shape_id].values
+    # dists = elevation_profiles[shape_id].index.to_numpy()
+    # dist_diff = dists[1:]-dists[:-1]
+    # els_diff = (els[1:]-els[:-1])[dist_diff!=0]
+    # dist_diff = dist_diff[dist_diff!=0]
+    # grade = els_diff/dist_diff
+
+
+
+    # for i, r in route_summaries.iterrows():
+    # elevation_profiles[r['shape_id'][]
+
+
+
 
 
