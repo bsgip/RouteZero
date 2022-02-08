@@ -1,11 +1,23 @@
 import numpy as np
 import pandas as pd
 pd.options.display.max_columns = None
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from gtfs_routes import process_gtfs_routes
 from weather import location_design_temp
 
+# for plotting the demo example
+import matplotlib.pyplot as plt
+import geopandas as gpd
+import folium
+import webbrowser
+import branca
+
+def folium_open(f_map, path):
+    html_page = f'{path}'
+    f_map.save(html_page)
+    # open in browser.
+    new = 2
+    webbrowser.open(html_page, new=new)
 
 
 class LinearRegressionAbdelatyModel:
@@ -86,7 +98,12 @@ class LinearRegressionAbdelatyModel:
 if __name__ == "__main__":
 
     gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
-    route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
+    # route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
+    route_short_names = ["305", "320", '389', '406',
+                         '428', '430', '431', '433',
+                         '437', '438N', '438X', '440',
+                         '441', '442', '445', '469',
+                         '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
     # cutoffs = [0, 6, 9, 15, 19, 22, 24]     # optional input for splitting up the route summary information into time windows
 
@@ -110,3 +127,104 @@ if __name__ == "__main__":
 
     model = LinearRegressionAbdelatyModel()
     route_data = model.predict_routes(route_data)
+
+    ## Prepare data for plotting on a map
+    gdf = gpd.GeoDataFrame(subset_shapes)
+    gdf['route_id'] = "nan"
+    gdf['max_EC_total'] = np.nan
+    gdf['max_EC_km'] = np.nan
+
+    for i, s in gdf.iterrows():
+        shape_id = s['shape_id']
+        max_EC_total = route_data[route_data.shape_id==shape_id].max_EC_total
+        max_EC_km = route_data[route_data.shape_id == shape_id].max_EC_km
+        route_id = route_data[route_data.shape_id == shape_id].route_id.to_numpy()[0]
+        if len(max_EC_total):
+            gdf.at[i, 'max_EC_total'] = max_EC_total
+            gdf.at[i, 'max_EC_km'] = max_EC_km
+            gdf.at[i, 'route_id'] = route_id
+
+    gdf.dropna(inplace=True)
+
+    minx, miny, maxx, maxy = gdf.geometry.total_bounds
+
+    centroid_lat = miny + (maxy - miny) / 2
+    centroid_lon = minx + (maxx - minx) / 2
+
+    ## create a map of total energy consumption
+    m = folium.Map(location=[centroid_lat, centroid_lon],
+                   tiles='cartodbpositron', zoom_start=12)
+    gdf.crs = {'init': 'epsg:4326'}
+
+    colorscale = branca.colormap.linear.YlGnBu_09.scale(gdf['max_EC_total'].min(), gdf['max_EC_total'].max())
+
+
+    def style_function(feature):
+        return {
+            'fillOpacity': 0.5,
+            'weight': 3,  # math.log2(feature['properties']['speed'])*2,
+            'color': colorscale(feature['properties']['max_EC_total'])
+        }
+
+
+    # my code for lines
+    geo_data = gdf.__geo_interface__
+    folium.GeoJson(
+        geo_data,
+        style_function=style_function,
+        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'max_EC_total'],
+                                               # aliases=tooltip_labels,
+                                               labels=True,
+                                               sticky=False)
+    ).add_to(m)
+
+    # adding a title
+    title_html = '''
+                 <h3 align="center" style="font-size:16px"><b>{}</b></h3>
+                 '''.format("Route Energy Consumption")
+    m.get_root().html.add_child(folium.Element(title_html))
+
+    # adding a legend
+    colorscale.caption = 'Energy consumption (kwh)'
+    colorscale.add_to(m)
+
+    folium_open(m, 'test.html')
+
+    ## create a map of total energy consumption per km
+    m = folium.Map(location=[centroid_lat, centroid_lon],
+                   tiles='cartodbpositron', zoom_start=12)
+    gdf.crs = {'init': 'epsg:4326'}
+
+    colorscale = branca.colormap.linear.YlGnBu_09.scale(gdf['max_EC_km'].min(), gdf['max_EC_km'].max())
+
+
+    def style_function(feature):
+        return {
+            'fillOpacity': 0.5,
+            'weight': 3,  # math.log2(feature['properties']['speed'])*2,
+            'color': colorscale(feature['properties']['max_EC_km'])
+        }
+
+
+    # my code for lines
+    geo_data = gdf.__geo_interface__
+    folium.GeoJson(
+        geo_data,
+        style_function=style_function,
+        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'max_EC_km'],
+                                               # aliases=tooltip_labels,
+                                               labels=True,
+                                               sticky=False)
+    ).add_to(m)
+
+    # adding a title
+    title_html = '''
+                 <h3 align="center" style="font-size:16px"><b>{}</b></h3>
+                 '''.format("Route Energy Consumption per km")
+    m.get_root().html.add_child(folium.Element(title_html))
+
+    # adding a legend
+    colorscale.caption = 'Energy consumption per km (khw/km)'
+    colorscale.add_to(m)
+
+    folium_open(m, 'test.html')
