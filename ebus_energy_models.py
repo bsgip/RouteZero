@@ -65,10 +65,7 @@ class LinearRegressionAbdelatyModel:
     def _predict(self, X):
         return np.dot(X, self.B)
 
-    # def predict(self, GR, SoCi, RC, HVAC, PL, Dagg, SD, Va):
-    #     X = np.array([1., GR, SoCi, RC, HVAC, PL, Dagg, SD, Va])
-    #     self._predict(X)
-
+    # todo: extend the below so can take lists for the optional inputs
     def predict_routes(self, route_data, SoCi=1., Dagg=2., PL=38, RC=1.):
         route_data['min_EC_km'] = 0.
         route_data['max_EC_km'] = 0.
@@ -76,10 +73,10 @@ class LinearRegressionAbdelatyModel:
         route_data['max_EC_total'] =0.
         for i, r in route_data.iterrows():
             hvac = []
-            hvac.append(model.hvac_from_temp(r['max_temp'], 1/(r['average_speed_mps']*3.6)))
-            hvac.append(model.hvac_from_temp(r['min_temp'], 1/(r['average_speed_mps']*3.6)))
+            hvac.append(self.hvac_from_temp(r['max_temp'], 1/(r['average_speed_mps']*3.6)))
+            hvac.append(self.hvac_from_temp(r['min_temp'], 1/(r['average_speed_mps']*3.6)))
             if (10. < r['max_temp']) and (10. > r['min_temp']):
-                hvac.append(model.hvac_from_temp(10., 1/(r['average_speed_mps']*3.6)))
+                hvac.append(self.hvac_from_temp(10., 1/(r['average_speed_mps']*3.6)))
             hvac_min = np.min(hvac)
             hvac_max = np.max(hvac)
             X = [1., r['av_grade_%'], SoCi, RC, PL, Dagg, r['stops_km'], r['average_speed_mps'] * 3.6]
@@ -106,7 +103,7 @@ if __name__ == "__main__":
                          '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
     # cutoffs = [0, 6, 9, 15, 19, 22, 24]     # optional input for splitting up the route summary information into time windows
-
+    passenger_loading = 38
     print('Processing routes '+", ".join(route_short_names))
     route_data, subset_shapes, elevation_profiles = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=True, route_desc=route_desc)
 
@@ -126,7 +123,7 @@ if __name__ == "__main__":
     route_data['max_temp'] = max_temps
 
     model = LinearRegressionAbdelatyModel()
-    route_data = model.predict_routes(route_data)
+    route_data = model.predict_routes(route_data, PL=passenger_loading)
 
     ## Prepare data for plotting on a map
     gdf = gpd.GeoDataFrame(subset_shapes)

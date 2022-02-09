@@ -82,7 +82,10 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
 
         # merge
         route_summaries = pd.merge(route_averages, num_stops_by_route_dir_shape, on=['route_id','direction_id','shape_id'])
+        # drop some left over data
+        route_summaries.drop(['trip_start_time', 'trip_end_time'], axis=1, inplace=True)
 
+    # compute stops per km
     route_summaries['stops_km'] = route_summaries['num_stops'] / (route_summaries['trip_distance']/1000)
 
     # get elevation information
@@ -114,7 +117,7 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
     # dist_diff = dist_diff[dist_diff!=0]
     # remember when averaging individual grades that they need to be weighted by segment length
 
-    return route_summaries, subset_shapes, elevation_profiles
+    return route_summaries, subset_shapes, elevation_profiles, trip_totals
 
 def elevation_from_shape(shapes):
     elevation_data = srtm.get_data()
@@ -141,7 +144,7 @@ if __name__ == "__main__":
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
     cutoffs = [0, 6, 9, 15, 19, 22, 24]     # optional input for splitting up the route summary information into time windows
 
-    route_summaries,subset_shapes, elevation_profiles = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest_day=True, route_desc=route_desc)
+    route_summaries,subset_shapes, elevation_profiles, trip_totals = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest_day=True, route_desc=route_desc)
 
     if cutoffs:
         plt.subplot(2,1,1)
@@ -177,8 +180,23 @@ if __name__ == "__main__":
 
     # for i, r in route_summaries.iterrows():
     # elevation_profiles[r['shape_id'][]
-
-
-
+    # """
+    # Work out busses in traffic
+    # """
+    # buffer = 0.1        # add a 10% buffer to trip times
+    # resolution = 10      # resolution in 5 mins
+    # time_slot_edges = np.arange(0, 24*60, resolution)      # time slot edges in minutes
+    # c_starts = np.histogram(trip_totals.trip_start_time/60, bins=time_slot_edges)[0]
+    #
+    # buffered_time_ends = trip_totals.trip_start_time/60 + trip_totals.trip_duration/60*(1+buffer)
+    # c_ends = np.histogram(buffered_time_ends, bins=time_slot_edges)[0]
+    #
+    # busses_in_traffic = np.cumsum(c_starts) - np.cumsum(c_ends)
+    #
+    # plt.step(time_slot_edges[:-1]/60, busses_in_traffic)
+    # plt.title('Busses in traffic on routes 305 and 320')
+    # plt.xlabel('Time of day (hour)')
+    # plt.ylabel('Number of busses')
+    # plt.show()
 
 
