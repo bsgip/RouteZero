@@ -16,14 +16,14 @@ import matplotlib.pyplot as plt
 
 if __name__=='__main__':
     gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
-    route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
-    # route_short_names = ["305", "320", '389', '406',
-    #                      '428', '430', '431', '433',
-    #                      '437', '438N', '438X', '440',
-    #                      '441', '442', '445', '469',
-    #                      '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
+    # route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
+    route_short_names = ["305", "320", '389', '406',
+                         '428', '430', '431', '433',
+                         '437', '438N', '438X', '440',
+                         '441', '442', '445', '469',
+                         '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
-    cutoffs = [0, 6, 9, 15, 19, 22, 24]     # optional input for splitting up the route summary information into time windows
+    cutoffs = [0, 6, 9, 15, 19, 22, 24, 30]     # optional input for splitting up the route summary information into time windows
     passenger_loading = 38
     print('Processing routes '+", ".join(route_short_names))
     route_data, subset_shapes, elevation_profiles, trip_totals = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest_day=True, route_desc=route_desc)
@@ -51,7 +51,7 @@ if __name__=='__main__':
     """
     buffer = 0.1        # add a 10% buffer to trip times
     resolution = 10      # resolution in 5 mins
-    time_slot_edges = np.arange(0, 24*60, resolution)      # time slot edges in minutes
+    time_slot_edges = np.arange(0, 30*60, resolution)      # time slot edges in minutes
     c_starts = np.histogram(trip_totals.trip_start_time/60, bins=time_slot_edges)[0]
 
     buffered_time_ends = trip_totals.trip_start_time/60 + trip_totals.trip_duration/60*(1+buffer)
@@ -80,21 +80,37 @@ if __name__=='__main__':
 
     # work out energy requirements of busses current in traffic
     # worst case first
-    e_starts = np.histogram(trip_totals.trip_start_time/60, bins=time_slot_edges, weights=trip_totals.max_EC_total*(1+buffer))[0]
-    e_ends = np.histogram(buffered_time_ends, bins=time_slot_edges, weights=trip_totals.max_EC_total*(1+buffer))[0]
+
+    # energy usage in kw
+    energy_usage = trip_totals.max_EC_total*(1+buffer) / (trip_totals.trip_duration/60/60)
+    e_starts = np.histogram(trip_totals.trip_start_time/60, bins=time_slot_edges, weights=energy_usage)[0]
+    e_ends = np.histogram(buffered_time_ends, bins=time_slot_edges, weights=energy_usage)[0]
 
     energy_req_busses_max = np.cumsum(e_starts) - np.cumsum(e_ends)
 
-    # bset case
-    e_starts = np.histogram(trip_totals.trip_start_time/60, bins=time_slot_edges, weights=trip_totals.min_EC_total*(1+buffer))[0]
-    e_ends = np.histogram(buffered_time_ends, bins=time_slot_edges, weights=trip_totals.min_EC_total*(1+buffer))[0]
+    # best case
+    energy_usage = trip_totals.min_EC_total * (1 + buffer) / (trip_totals.trip_duration / 60 / 60)
+    e_starts = np.histogram(trip_totals.trip_start_time/60, bins=time_slot_edges, weights=energy_usage)[0]
+    e_ends = np.histogram(buffered_time_ends, bins=time_slot_edges, weights=energy_usage)[0]
 
     energy_req_busses_min = np.cumsum(e_starts) - np.cumsum(e_ends)
 
-    plt.step(time_slot_edges[:-1],energy_req_busses_max,label='worst temperature')
-    plt.step(time_slot_edges[:-1], energy_req_busses_min, label='best temperature')
-    plt.ylabel('Energy requirement (kwh)')
-    plt.title('Energy requirement of busses in traffic on {} sydney bus routes'.format(len(route_short_names)))
+    plt.step(time_slot_edges[:-1]/60,energy_req_busses_max,label='worst temperature')
+    plt.step(time_slot_edges[:-1]/60, energy_req_busses_min, label='best temperature')
+    plt.ylabel('Energy usage (kw)')
+    plt.title('Energy usage of busses in traffic on {} sydney bus routes'.format(len(route_short_names))+'\n Area under this graph is energy consumed (kwh)')
+    plt.xlabel('Time of day (hour)')
+    plt.legend()
+    plt.show()
+
+    # calculate cumulative energy consumption in kwh
+    energy_consumption_max = np.cumsum(energy_req_busses_max) * (resolution / 60)
+    energy_consumption_min = np.cumsum(energy_req_busses_min) * (resolution / 60)
+
+    plt.step(time_slot_edges[:-1]/60, energy_consumption_max,label='worst temperature')
+    plt.step(time_slot_edges[:-1]/60, energy_consumption_min, label='best temperature')
+    plt.ylabel('Energy consumed (kwh)')
+    plt.title('Cumulative energy consumed by busses in traffic on {} sydney bus routes'.format(len(route_short_names)))
     plt.xlabel('Time of day (hour)')
     plt.legend()
     plt.show()

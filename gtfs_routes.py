@@ -59,9 +59,8 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
         'num_stops'].mean().reset_index()
 
     if cutoffs:
-        cutoffs = [0, 6, 9, 15, 19, 22, 24]
         mid_window = (np.array(cutoffs[:-1]) + np.array(cutoffs[1:])) / 2
-        labels = [str(cutoffs[i]) + '-' + str(cutoffs[i + 1]) for i in range(0, len(cutoffs) - 1)]
+        # labels = [str(cutoffs[i]) + '-' + str(cutoffs[i + 1]) for i in range(0, len(cutoffs) - 1)]
         trip_totals['window'] = pd.cut(trip_totals['trip_start_time'] / 3600, bins=cutoffs, right=False,
                                          labels=mid_window)
 
