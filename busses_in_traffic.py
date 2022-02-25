@@ -183,3 +183,10 @@ if __name__=='__main__':
     plt.tight_layout()
     plt.show()
 
+## Save some data for optimisation
+optim_data = pd.DataFrame(index=t_wrap,columns=['ED','ER','Nt'])
+optim_data['ED'] = depart_trip_energy_reqs
+optim_data['ER'] = return_trip_enery_consumed
+optim_data['Nt'] = busses_at_depot
+
+optim_data.to_csv('data/optim_data.csv')
