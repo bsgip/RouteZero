@@ -26,9 +26,9 @@ optim_data = pd.concat(li,axis=0)
 CB = 368         # max battery capacity per bus
 # CB = 100         # max battery capacity per bus
 U = 10         # maximum amount charged per charger (kwh)
-num_chargers = 20
+num_chargers = 30
 SC = 0.9      # initial charge
-FC = 0.0       # required end charge
+FC = 0.8       # required end charge
 
 
 M = optim_data['Nt'].max()
@@ -36,6 +36,7 @@ Nt = optim_data['Nt'].to_numpy()
 times = optim_data.index
 end_time = times.max()
 num_times = len(times)
+depot_limit = 1000*2/6      # (kwh), # roughly converted from 1MVA to kwh in a 10 minute interval
 
 ER = optim_data['ER'].to_numpy()
 ED = optim_data['ED'].to_numpy()
@@ -48,7 +49,7 @@ p = np.cos(2*np.pi*times/end_time*repeat_days)+1.1      # this works for one day
 
 model = pyo.ConcreteModel()
 model.T = range(num_times)
-model.x = pyo.Var(model.T, domain=pyo.Reals, bounds=(0,U*num_chargers))
+model.x = pyo.Var(model.T, domain=pyo.Reals, bounds=(0,min(U*num_chargers,depot_limit)))
 
 model.obj = pyo.Objective(expr=sum(p[t]*model.x[t] for t in model.T),
                           sense=pyo.minimize)
