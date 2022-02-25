@@ -93,6 +93,7 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
     # get average grade and add to route summaries and also add route start location
     route_summaries['av_grade_%'] = np.nan
     start_locations = []
+    end_locations = []
     for i, r in route_summaries.iterrows():
         els = elevation_profiles[r['shape_id']].values
         dists = elevation_profiles[r['shape_id']].index.to_numpy()
@@ -100,8 +101,10 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
         route_summaries.loc[i, 'av_grade_%'] = av_grade
 
         start_locations.append(subset_shapes[subset_shapes.shape_id==r['shape_id']]['geometry'].values[0].coords[0])
+        end_locations.append(subset_shapes[subset_shapes.shape_id==r['shape_id']]['geometry'].values[0].coords[-1])
 
     route_summaries['start_location'] = start_locations
+    route_summaries['end_location'] = end_locations
 
 
     # add location data
