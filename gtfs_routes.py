@@ -119,7 +119,7 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
     # dist_diff = dist_diff[dist_diff!=0]
     # remember when averaging individual grades that they need to be weighted by segment length
 
-    return route_summaries, subset_shapes, elevation_profiles, trip_totals
+    return route_summaries, subset_shapes, elevation_profiles, trip_totals, subset_stops
 
 def elevation_from_shape(shapes):
     elevation_data = srtm.get_data()

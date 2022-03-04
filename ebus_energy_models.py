@@ -96,16 +96,26 @@ if __name__ == "__main__":
 
     gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
     # route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
-    route_short_names = ["305", "320", '389', '406',
-                         '428', '430', '431', '433',
-                         '437', '438N', '438X', '440',
-                         '441', '442', '445', '469',
-                         '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
-    route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
+    # route_short_names = ["305", "320", '389', '406',
+    #                      '428', '430', '431', '433',
+    #                      '437', '438N', '438X', '440',
+    #                      '441', '442', '445', '469',
+    #                      '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
+    # route_short_names = ["305", "320", '389', '406',
+    #                      '428', '430', '431', '433',
+    #                      '437', '438N', '438X', '440',
+    #                      '441', '442', '445', '469',
+    #                      '470', '502', '503', '504',
+    #                      '504X', '']  # the short names of the routes we want to get summaries of
+    route_names_df = pd.read_csv('data/zenobe_routes.csv')
+    route_short_names = route_names_df['route_short_name'].to_list()
+
+    # route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
+    route_desc = None
     # cutoffs = [0, 6, 9, 15, 19, 22, 24]     # optional input for splitting up the route summary information into time windows
     passenger_loading = 38
     print('Processing routes '+", ".join(route_short_names))
-    route_data, subset_shapes, elevation_profiles = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=True, route_desc=route_desc)
+    route_data, subset_shapes, elevation_profiles, trip_totals, subset_stops = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=True, route_desc=route_desc)
 
     # get design day temperatures for route locations
     min_temps = []
@@ -225,3 +235,29 @@ if __name__ == "__main__":
     colorscale.add_to(m)
 
     folium_open(m, 'test.html')
+
+    plt.subplot(2,1,1)
+    plt.hist(route_data['max_EC_total'], bins=np.arange(40))
+    plt.xlabel('Energy consumed on routes (kwh)')
+    plt.ylabel('number of trips')
+    plt.title('Energy consumptions for worst case temperature')
+
+    plt.subplot(2,1,2)
+    plt.hist(route_data['min_EC_total'], bins=np.arange(40))
+    plt.xlabel('Energy consumed on routes (kwh)')
+    plt.ylabel('number of trips')
+    plt.title('Energy consumptions for best case temperature')
+
+    plt.tight_layout()
+    plt.show()
+
+    #
+    # subset_shapes.to_csv('pre_processed_gtfs_data/subset_shapes.csv')
+    # route_data.to_csv('route_data.csv')
+
+    # import pickle
+    # with open('elevation_profiles.pickle', 'wb') as handle:
+    #     pickle.dump(elevation_profiles, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # with open('filename.pickle', 'rb') as handle:
+    #     b = pickle.load(handle)

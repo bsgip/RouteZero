@@ -55,8 +55,6 @@ for df in df_list:
     df['elevation'] = els
 
 
-plt.plot(df_list[49]['GPS_E'], df_list[49]['GPS_N'])
-plt.show()
 
 # todo: 5) determine if charging
 
@@ -109,22 +107,102 @@ for df in df_list:
 
     df['is_charging'] = charging
 
-    plt.subplot(3,1,1)
-    plt.plot(df['STATE_OF_CHARGE'])
-    # plt.plot(df_list[10]['SOC_smooth'])
+    # plt.subplot(3,1,1)
+    # plt.plot(df['STATE_OF_CHARGE'])
+    # # plt.plot(df_list[10]['SOC_smooth'])
+    #
+    # plt.subplot(3,1,2)
+    # plt.plot(charging)
+    #
+    # plt.subplot(3,1,3)
+    # plt.plot(odo_diff > 0)
+    # plt.tight_layout()
+    # plt.show()
 
-    plt.subplot(3,1,2)
-    plt.plot(charging)
 
-    plt.subplot(3,1,3)
-    plt.plot(odo_diff > 0)
-    plt.tight_layout()
-    plt.show()
+# todo: 6) Calculate speed and accelerations
+for df in df_list:
+    df['speed_mps'] = df['ODOMETER'].diff().fillna(method='ffill')*1000/60      # assumes 1 minute time intervals (which should be correct)
+    df['acceleration'] = df['speed_mps'].diff().fillna(method='ffill')/60
+    # print('max acceleration is {} and max deceleration is {}'.format(df.acceleration.max(),df.acceleration.min()))
 
+# plt.subplot(3,1,1)
+# plt.plot(df['ODOMETER'][:100])
+#
+# plt.subplot(3,1,2)
+# plt.plot(df['speed_mps'][:100])
+#
+# plt.subplot(3,1,3)
+# plt.plot(df['acceleration'])
+
+
+plt.tight_layout()
+plt.show()
 
 # todo: 6) add temperature data
 
+
 # todo: 7) see if we can match to trips / routes
+subset_shapes = pd.read_csv('data/pre_processed_gtfs_data/subset_shapes.csv')
+import geopandas as gpd
+subset_shapes['geometry'] = gpd.GeoSeries.from_wkt(subset_shapes['geometry'])
+gdf = gpd.GeoDataFrame(subset_shapes, geometry=subset_shapes.geometry)
+
+#todo: this equation is broke for some reason
+def haversine(N1, E1, N2, E2):
+    """
+    :param N1: Array of latitudes for the first points
+    :param E1: Array of longitudes for the first points
+    :param N2: Array of latitudes for the first points
+    :param E2: Array of longitudes for the first points
+    :return dists: array of distances between all points
+    """
+    r = 6371.0
+    N1 = np.atleast_2d(N1).T
+    E1 = np.atleast_2d(E1).T
+    N2 = np.atleast_2d(N2)
+    E2 = np.atleast_2d(E2)
+
+    dists = 2*r*np.arcsin(np.sqrt(np.sin((N1-N2)/2)**2 + np.cos(N1)*np.cos(N2)*np.sin((E1-E2)/2)**2))
+    return dists
+
+route_N_lists = []
+route_E_lists = []
+max_dist = []
+for i, r in gdf.iterrows():
+    N = []
+    E = []
+    for p in r.geometry.coords:
+        N.append(p[1])
+        E.append(p[0])
+    N = np.array(N)
+    E = np.array(E)
+    route_N_lists.append(N)
+    route_E_lists.append(E)
+
+    plt.plot(E, N, color='k')
+
+    dists = np.sqrt((np.atleast_2d(E).T-np.atleast_2d(df_list[49]['GPS_E'].to_numpy()))**2+(np.atleast_2d(N).T-np.atleast_2d(df_list[49]['GPS_N'].to_numpy()))**2)
+
+
+    # dists = haversine(N, E, df_list[49]['GPS_N'].to_numpy(), df_list[49]['GPS_E'].to_numpy())
+    max_dist.append(dists.min(axis=1).max())
+
+max_dist = np.array(max_dist)
+
+plt.plot(df_list[49]['GPS_E'], df_list[49]['GPS_N'],marker='.', linestyle='--')
+plt.plot(route_E_lists[41],route_N_lists[41], color='k')
+
+# plt.xlim((df_list[49]['GPS_E'].min(), df_list[49]['GPS_E'].max()))
+# plt.ylim((df_list[49]['GPS_N'].min(), df_list[49]['GPS_N'].max()))
+plt.xlim((151.05, 151.26))
+plt.ylim((-33.95, -33.8))
+plt.show()
+# for i,s in subset_shapes.iterrows():
+#     for p in s.geometry:
+#         print(p)
+
+
 
 
 ## Try writing a Particle Filter for the state of charge problem
