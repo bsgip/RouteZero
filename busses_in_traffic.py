@@ -11,11 +11,18 @@ from ebus_energy_models import LinearRegressionAbdelatyModel
 # for plotting the demo example
 import matplotlib.pyplot as plt
 
-# todo: deadhead time should go on either side of a route not just at the end!!
-
 
 
 if __name__=='__main__':
+    # choose some things
+    busiest = 'day'
+    cutoffs = [0, 6, 9, 15, 19, 22, 24,
+               30]  # optional input for splitting up the route summary information into time windows
+    wrap_time = 24*60
+
+
+    passenger_loading = 38
+
     gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
     # route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
     route_short_names = ["305", "320", '389', '406',
@@ -26,10 +33,10 @@ if __name__=='__main__':
     #                      '441', '442', '445', '469',
     #                      '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
-    cutoffs = [0, 6, 9, 15, 19, 22, 24, 30]     # optional input for splitting up the route summary information into time windows
-    passenger_loading = 38
+
+
     print('Processing routes '+", ".join(route_short_names))
-    route_data, subset_shapes, elevation_profiles, trip_totals = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest_day=True, route_desc=route_desc)
+    route_data, subset_shapes, elevation_profiles, trip_totals, _ = process_gtfs_routes(gtfs_file, route_short_names, cutoffs=cutoffs, busiest=busiest, route_desc=route_desc)
 
     # get design day temperatures for route locations
     min_temps = []
@@ -67,7 +74,7 @@ if __name__=='__main__':
     busses_in_traffic = np.cumsum(c_starts) - np.cumsum(c_ends)
 
     t_starts = time_slot_edges[:-1]
-    wrap_inds = t_starts > 24*60    # todo: apply wrap to start as well in some way consistently
+    wrap_inds = t_starts > wrap_time    # todo: apply wrap to start as well in some way consistently
     busses_in_traffic[:sum(wrap_inds)] = busses_in_traffic[:sum(wrap_inds)]+busses_in_traffic[wrap_inds]
 
     t_wrap = t_starts[~wrap_inds]
@@ -189,4 +196,4 @@ optim_data['ED'] = depart_trip_energy_reqs
 optim_data['ER'] = return_trip_enery_consumed
 optim_data['Nt'] = busses_at_depot
 
-optim_data.to_csv('data/optim_data.csv')
+# optim_data.to_csv('data/optim_data.csv')

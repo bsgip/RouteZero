@@ -5,13 +5,43 @@ import srtm
 import pandas as pd
 pd.options.display.max_columns = None
 import geopy.distance
+import os
 
 # todo: add a location tag to route data
 
 
-def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=True, route_desc=None):
+def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest='day', route_desc=None):
     # import all gtfs route data from file
-    routes, stops, stop_times, trips, shapes = gtfs.import_gtfs(gtfs_file, busiest_date=busiest_day)
+    # if cache:
+    #     base_name = os.path.splitext(gtfs_file)[0]
+    #     if busiest is None:
+    #         busiest = ''
+    #     if os.path.exists(base_name+'_routes_'+busiest+'.csv') and (os.path.getmtime(base_name+'_routes_'+busiest+'.csv') > os.path.getmtime(gtfs_file)):    # cache was done since gtfs modifications
+    #         routes = pd.read_csv(base_name+'_routes_'+busiest+'.csv')
+    #         stops = pd.read_csv(base_name + '_stops_' + busiest + '.csv')
+    #         stop_times = pd.read_csv(base_name + '_stop_times_' + busiest + '.csv', low_memory=False)
+    #         trips = pd.read_csv(base_name + '_trips_' + busiest + '.csv')
+    #         shapes = pd.read_csv(base_name + '_shapes_' + busiest + '.csv')
+    #     else:
+    #         if busiest == 'week':
+    #             routes, stops, stop_times, trips, shapes = gtfs.import_gtfs_busiest_week(gtfs_file)
+    #         elif busiest == 'day':
+    #             routes, stops, stop_times, trips, shapes = gtfs.import_gtfs(gtfs_file, busiest_date=True)
+    #         else:
+    #             routes, stops, stop_times, trips, shapes = gtfs.import_gtfs(gtfs_file, busiest_date=False)
+    #
+    #         routes.to_csv(base_name+'_routes_'+busiest+'.csv')
+    #         stops.to_csv(base_name + '_stops_'+busiest+'.csv')
+    #         trips.to_csv(base_name + '_trips_'+busiest+'.csv')
+    #         stop_times.to_csv(base_name + '_stop_times_'+busiest+'.csv')
+    #         shapes.to_csv(base_name + '_shapes_'+busiest+'.csv')
+    # else:
+    if busiest=='week':
+        routes, stops, stop_times, trips, shapes = gtfs.import_gtfs_busiest_week(gtfs_file)
+    elif busiest=='day':
+        routes, stops, stop_times, trips, shapes = gtfs.import_gtfs(gtfs_file, busiest_date=True)
+    else:
+        routes, stops, stop_times, trips, shapes = gtfs.import_gtfs(gtfs_file, busiest_date=False)
 
     # cut down to only bus routes
     # bus services have route types in teh 700 so >=700 and < 800
@@ -58,7 +88,10 @@ def process_gtfs_routes(gtfs_file, route_short_names, cutoffs=None, busiest_day=
     num_stops_by_route_dir_shape = df_tmp.groupby(by=['route_id', 'direction_id', 'shape_id'])[
         'num_stops'].mean().reset_index()
 
-    if cutoffs:
+    if cutoffs is not None:
+        max_stop_time = stop_times['departure_time'].max()/3600
+        if cutoffs[-1] < max_stop_time:       # do something about this
+            print('Warning: last cutoff ({}) is less than last stop time ({})'.format(cutoffs[-1],stop_times['departure_time'].max()/3600))
         mid_window = (np.array(cutoffs[:-1]) + np.array(cutoffs[1:])) / 2
         # labels = [str(cutoffs[i]) + '-' + str(cutoffs[i + 1]) for i in range(0, len(cutoffs) - 1)]
         trip_totals['window'] = pd.cut(trip_totals['trip_start_time'] / 3600, bins=cutoffs, right=False,
