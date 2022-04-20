@@ -42,7 +42,7 @@ safety_factor = 1.0     # increase above 1 to consider higher energy usage
 
 M = optim_data['Nt'].max()
 Nt = optim_data['Nt'].to_numpy()
-Nt_avail = minimum_filter1d(Nt, dead_time)
+Nt_avail = minimum_filter1d(Nt, int(np.ceil(dead_time*2/10)))
 times = optim_data.index
 end_time = times.max()
 num_times = len(times)
@@ -53,8 +53,8 @@ ER = optim_data['ER'].to_numpy() * safety_factor
 ED = optim_data['ED'].to_numpy() * safety_factor
 
 out = minimum_filter1d(Nt, 10)
-plt.plot(Nt[0:150])
-plt.plot(Nt_avail[0:150])
+plt.plot(Nt[0:50])
+plt.plot(Nt_avail[0:50])
 plt.show()
 
 # a price signal that is cheapest in the middle of the day when solar would be available
@@ -89,10 +89,10 @@ for t in range(0, num_times):
 model.min_charged = pyo.ConstraintList()
 for t in range(1, num_times):
    #  will be infeasible if starting charge not enough
-    model.min_charged.add(SC*M*CB -sum(ER[k] for k in range(t+1)) + sum(model.x[i] for i in range(t)) >= 0.)
+    model.min_charged.add(SC*M*CB -sum(ED[k] for k in range(t+1)) + sum(model.x[i] for i in range(t)) >= 0.)
 
 # enforce battery finishes at least 80% charged
-model.end_constraint = pyo.Constraint(expr=M*CB*SC + sum(model.x[t]-ER[t] for t in model.T) + model.slack>=FC*M*CB)
+model.end_constraint = pyo.Constraint(expr=M*CB*SC + sum(model.x[t]-ED[t] for t in model.T) + model.slack>=FC*M*CB)
 
 opt = SolverFactory('cbc')
 results = opt.solve(model)
@@ -110,7 +110,7 @@ end_period_charge_slack = model.slack.value
 
 print('Minimum number of chargers required is ', min_number_chargers)
 print('Min depot connection rating is ', min_depot_limit, ' in kWh per interval')
-print('Mind depot connection power rating is ', min_depot_limit*6, 'in kW')
+print('Min depot connection power rating is ', min_depot_limit*6, 'in kW')
 print('Failed to meet desired end aggregate charge by ', end_period_charge_slack, ' kWh')
 print('which amounts to', end_period_charge_slack/(M*CB)*100, ' (%)')
 

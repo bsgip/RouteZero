@@ -65,8 +65,35 @@ class LinearRegressionAbdelatyModel:
     def _predict(self, X):
         return np.dot(X, self.B)
 
+    # def predict_sequence(self, route_data, Dagg=[2,3], PL=38, RC=[1,3], PL_peak=None):
+    #     route_data['min_EC_km'] = 0.
+    #     route_data['max_EC_km'] = 0.
+    #     route_data['min_EC_total'] = 0.
+    #     route_data['max_EC_total'] =0.
+    #     for i, r in route_data.iterrows():
+    #         hvac = []
+    #         hvac.append(self.hvac_from_temp(r['max_temp'], 1/(r['average_speed_mps']*3.6)))
+    #         hvac.append(self.hvac_from_temp(r['min_temp'], 1/(r['average_speed_mps']*3.6)))
+    #         if (10. < r['max_temp']) and (10. > r['min_temp']):
+    #             hvac.append(self.hvac_from_temp(10., 1/(r['average_speed_mps']*3.6)))
+    #         hvac_min = np.min(hvac)
+    #         hvac_max = np.max(hvac)
+    #         X = [1., r['av_grade_%'], SoCi, RC[0], PL, Dagg[0], r['stops_km'], r['average_speed_mps'] * 3.6]
+    #         EC_min = self._predict(X) + hvac_min
+    #         if PL_peak:
+    #             X = [1., r['av_grade_%'], SoCi, RC[1], PL_peak, Dagg[1], r['stops_km'], r['average_speed_mps'] * 3.6]
+    #             EC_max = self._predict(X) + hvac_max
+    #         else:
+    #             X = [1., r['av_grade_%'], SoCi, RC[1], PL, Dagg[1], r['stops_km'], r['average_speed_mps'] * 3.6]
+    #             EC_max = self._predict(X) + hvac_max
+    #         route_data.loc[i, 'min_EC_km'] = EC_min
+    #         route_data.loc[i, 'max_EC_km'] = EC_max
+    #         route_data.loc[i, 'min_EC_total'] = EC_min * r['trip_distance'] / 1000  # convert metres to km
+    #         route_data.loc[i, 'max_EC_total'] = EC_max * r['trip_distance'] / 1000
+    #     return route_data
+
     # todo: extend the below so can take lists for the optional inputs
-    def predict_routes(self, route_data, SoCi=1., Dagg=2., PL=38, RC=1.):
+    def predict_routes(self, route_data, SoCi=[1.,1.], Dagg=[2,3], PL=38, RC=[1,3], PL_peak=None):
         route_data['min_EC_km'] = 0.
         route_data['max_EC_km'] = 0.
         route_data['min_EC_total'] = 0.
@@ -79,9 +106,14 @@ class LinearRegressionAbdelatyModel:
                 hvac.append(self.hvac_from_temp(10., 1/(r['average_speed_mps']*3.6)))
             hvac_min = np.min(hvac)
             hvac_max = np.max(hvac)
-            X = [1., r['av_grade_%'], SoCi, RC, PL, Dagg, r['stops_km'], r['average_speed_mps'] * 3.6]
+            X = [1., r['av_grade_%'], SoCi[0], RC[0], PL, Dagg[0], r['stops_km'], r['average_speed_mps'] * 3.6]
             EC_min = self._predict(X) + hvac_min
-            EC_max = self._predict(X) + hvac_max
+            if PL_peak:
+                X = [1., r['av_grade_%'], SoCi[1], RC[1], PL_peak, Dagg[1], r['stops_km'], r['average_speed_mps'] * 3.6]
+                EC_max = self._predict(X) + hvac_max
+            else:
+                X = [1., r['av_grade_%'], SoCi[1], RC[1], PL, Dagg[1], r['stops_km'], r['average_speed_mps'] * 3.6]
+                EC_max = self._predict(X) + hvac_max
             route_data.loc[i, 'min_EC_km'] = EC_min
             route_data.loc[i, 'max_EC_km'] = EC_max
             route_data.loc[i, 'min_EC_total'] = EC_min * r['trip_distance'] / 1000  # convert metres to km

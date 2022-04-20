@@ -329,8 +329,6 @@ class Route():
             self.df_nodes_route[k]['speed_kph'] = node_speeds
 
 
-
-
 if __name__=='__main__':
     map_name = 'test'
     map_center = '23 Maitland Road, Mayfield NSW'

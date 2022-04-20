@@ -21,6 +21,8 @@ def location_design_temp(location_coords, elevation, num_years=10, percentiles=[
     start = [2021-num_years, 1, 1]
     end = [2021, 1, 1]
     data = historical_daily_temperatures(start, end, location_coords, elevation)
+    data = data[['tavg','tmin','tmax']]
+    data.dropna(inplace=True)
     min_tmp = np.percentile(data.tmin, percentiles[0])
     max_tmp = np.percentile(data.tmax, percentiles[1])
     avg_tmp = np.mean(data.tavg)
