@@ -64,8 +64,8 @@ p = np.cos(2*np.pi*times/end_time*repeat_days)+1.1      # this works for one day
 model = pyo.ConcreteModel()
 model.T = range(num_times)
 model.x = pyo.Var(model.T, domain=pyo.Reals, bounds=(0,min(U*num_chargers,depot_limit)))
-
-model.obj = pyo.Objective(expr=sum(p[t]*model.x[t] for t in model.T),
+model.slack = pyo.Var(domain=pyo.NonNegativeReals)
+model.obj = pyo.Objective(expr=sum(p[t]*model.x[t] for t in model.T)+model.slack * 1e10,
                           sense=pyo.minimize)
 
 # maximum charging
@@ -77,7 +77,7 @@ for t in range(num_times):
 model.max_charged = pyo.ConstraintList()
 for t in range(0, num_times):
     if t==0:
-        model.max_charged.add(model.x[0]<=((1-SC)*M*CB)) ## todo: currently assuming battery starts full, change this?
+        model.max_charged.add(model.x[0]<=((1-SC)*M*CB))
     else:
         model.max_charged.add(sum(model.x[i] for i in range(t+1)) <= sum(ER[k] for k in range(t)))
 
@@ -87,7 +87,7 @@ for t in range(1, num_times):
     model.min_charged.add(SC*M*CB -sum(ED[k] for k in range(t+1)) + sum(model.x[i] for i in range(t)) >= 0.)
 
 # enforce battery finishes at least 80% charged
-model.end_constraint = pyo.Constraint(expr=M*CB*SC + sum(model.x[t]-ED[t] for t in model.T)>=FC*M*CB)
+model.end_constraint = pyo.Constraint(expr=M*CB*SC + sum(model.x[t]-ED[t] for t in model.T)+model.slack>=FC*M*CB)
 
 opt = SolverFactory('cbc')
 results = opt.solve(model)
