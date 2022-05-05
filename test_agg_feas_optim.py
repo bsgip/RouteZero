@@ -3,7 +3,7 @@ import pyomo.environ as pyo
 import numpy as np
 import matplotlib.pyplot as plt
 from pyomo.opt import SolverFactory
-
+import time
 from scipy.ndimage.filters import minimum_filter1d
 
 # load saved data
@@ -95,7 +95,11 @@ for t in range(1, num_times):
 model.end_constraint = pyo.Constraint(expr=M*CB*SC + sum(model.x[t]-ED[t] for t in model.T) + model.slack>=FC*M*CB)
 
 opt = SolverFactory('cbc')
+t1 = time.time()
 results = opt.solve(model)
+t2 = time.time()
+
+print('time taken ',t2-t1)
 # model.display()
 
 

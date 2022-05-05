@@ -25,13 +25,13 @@ if __name__=='__main__':
 
     gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
     # route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
-    route_short_names = ["305", "320", '389', '406',
-                         '428', '430', '431', '433']
     # route_short_names = ["305", "320", '389', '406',
-    #                      '428', '430', '431', '433',
-    #                      '437', '438N', '438X', '440',
-    #                      '441', '442', '445', '469',
-    #                      '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
+    #                      '428', '430', '431', '433']
+    route_short_names = ["305", "320", '389', '406',
+                         '428', '430', '431', '433',
+                         '437', '438N', '438X', '440',
+                         '441', '442', '445', '469',
+                         '470', '502', '503', '504']      # the short names of the routes we want to get summaries of
     route_desc = 'Sydney Buses Network'     # optional input if we also want to filter by particular types of routes
 
 
@@ -126,9 +126,9 @@ if __name__=='__main__':
     # shift after 24 hours to morning
 
 
-    plt.step(t_wrap/60,energy_req_busses_max_wrap,label='worst temperature')
-    plt.step(t_wrap/60, energy_req_busses_min_wrap, label='best temperature')
-    plt.ylabel('Energy usage (kw)')
+    plt.step(t_wrap/60,energy_req_busses_max_wrap,label='worst case')
+    plt.step(t_wrap/60, energy_req_busses_min_wrap, label='best case')
+    plt.ylabel('Energy usage (kWh)')
     plt.title('Energy usage of busses in traffic on {} sydney bus routes'.format(len(route_short_names))+'\n Area under this graph is energy consumed (kwh)')
     plt.xlabel('Time of day (hour)')
     plt.legend()
