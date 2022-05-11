@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 pd.options.display.max_columns = None
-from scipy.interpolate import interp1d
-from weather import location_design_temp
+from RouteZero.weather import location_design_temp
 
 # custom functions
 from gtfs_routes import process_gtfs_routes
@@ -23,7 +22,7 @@ if __name__=='__main__':
 
     passenger_loading = 38
 
-    gtfs_file = "./data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
+    gtfs_file = "../data/full_greater_sydney_gtfs_static.zip"        # location of the gtfs zip file
     # route_short_names = ["305", "320"]      # the short names of the routes we want to get summaries of
     # route_short_names = ["305", "320", '389', '406',
     #                      '428', '430', '431', '433']

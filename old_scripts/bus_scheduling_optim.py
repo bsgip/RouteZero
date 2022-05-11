@@ -1,16 +1,11 @@
 import numpy as np
 import pandas as pd
 pd.options.display.max_columns = None
-from scipy.interpolate import interp1d
-from weather import location_design_temp
 import geopy.distance
 # custom functions
 from gtfs_routes import process_gtfs_routes
-from ebus_energy_models import LinearRegressionAbdelatyModel
 import pyomo.environ as pyEnv
 # for plotting the demo example
-import matplotlib.pyplot as plt
-
 
 
 # todo: deadhead time should go on either side of a route not just at the end!!

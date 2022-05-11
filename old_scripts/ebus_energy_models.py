@@ -3,7 +3,7 @@ import pandas as pd
 pd.options.display.max_columns = None
 from scipy.interpolate import interp1d
 from gtfs_routes import process_gtfs_routes
-from weather import location_design_temp
+from RouteZero.weather import location_design_temp
 
 # for plotting the demo example
 import matplotlib.pyplot as plt

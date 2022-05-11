@@ -7,7 +7,7 @@ import time
 from scipy.ndimage.filters import minimum_filter1d
 
 # load saved data
-optim_data = pd.read_csv('./data/optim_data.csv', index_col=0)
+optim_data = pd.read_csv('../data/optim_data.csv', index_col=0)
 optim_data['ER_cum'] = optim_data['ER'].cumsum().shift(1, fill_value=0.)
 
 
@@ -52,10 +52,6 @@ num_times = len(times)
 ER = optim_data['ER'].to_numpy() * safety_factor
 ED = optim_data['ED'].to_numpy() * safety_factor
 
-out = minimum_filter1d(Nt, 10)
-plt.plot(Nt[0:50])
-plt.plot(Nt_avail[0:50])
-plt.show()
 
 # a price signal that is cheapest in the middle of the day when solar would be available
 # p = np.cos(2*np.pi*times/end_time*repeat_days)+1.1      # this works for one day worth
