@@ -172,16 +172,16 @@ if __name__=="__main__":
 
 
     trip_summary = process(trips, stop_times, stops)
-    t1 = time.time()
-    stops = _stop_elevations(stops)
-    t2 = time.time()
-    print(t2-t1)
-
-    t1 = time.time()
-    stop = _stop_temperatures(stops, num_years=5)
-    t2 = time.time()
-    print(t2-t1)
-    trip_summary = _summarise_trip_data(trips, stop_times, stops)
+    # t1 = time.time()
+    # stops = _stop_elevations(stops)
+    # t2 = time.time()
+    # print(t2-t1)
+    #
+    # t1 = time.time()
+    # stop = _stop_temperatures(stops, num_years=5)
+    # t2 = time.time()
+    # print(t2-t1)
+    # trip_summary = _summarise_trip_data(trips, stop_times, stops)
 
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)
 
