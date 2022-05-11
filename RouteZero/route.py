@@ -23,11 +23,12 @@ def process(trips, stop_times, stops):
     """
     # add elevatoin info to stops
     stops = _stop_elevations(stops)
+    # add temperature data to stops
+    stops = _stop_temperatures(stops)
     # summarise all model input data into one data frame
     trip_summary = _summarise_trip_data(trips, stop_times, stops)
 
     return trip_summary
-
 
 def _summarise_trip_data(trips, stop_times, stops):
     """
@@ -37,7 +38,7 @@ def _summarise_trip_data(trips, stop_times, stops):
     :param stops: gtfs stop data frame with elevation information added
     :return: trip_summary data frame
     """
-    stop_times = stop_times.merge(stops[['stop_id', 'elevation']], how='left')
+    stop_times = stop_times.merge(stops[['stop_id', 'elevation','min_temp','max_temp']], how='left')
     stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id','trip_id']], how='left')
     stop_times.sort_values(by=['unique_id', 'direction_id', 'stop_sequence'], ascending=True, inplace=True)
     trip_start_stops = stop_times.groupby(by='unique_id').head(1).reset_index(drop=True)
@@ -68,6 +69,10 @@ def _summarise_trip_data(trips, stop_times, stops):
     # average elevation on trip
     trip_summary['av_elevation'] = stop_times.groupby(by='unique_id')['elevation'].mean().reset_index(drop=True)
 
+    # average design temps on trip
+    trip_summary['min_temp'] = stop_times.groupby(by='unique_id')['min_temp'].mean().reset_index(drop=True)
+    trip_summary['max_temp'] = stop_times.groupby(by='unique_id')['max_temp'].mean().reset_index(drop=True)
+
     return trip_summary
 
 def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
@@ -91,6 +96,31 @@ def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
     times = time_slot_edges[:-1]
     return times, buses_in_traffic
 
+
+def _stop_temperatures(stops, num_years=5, percentiles=[1, 99]):
+    """
+    determines the 'design' temperature for each stop location. The min temperature will be the percentile[0] temperature
+    max temperature will be the percentile[1] temperature from the past num_years worth of recordings at the stop location
+    and elevation
+    :param stops: gtfs stops data frame with
+    :param num_years: number of years worth of historical data to use
+    :param percentiles: the percentiles used for extracting min and max temperature from the historical data
+    :return: stops with min and max temperature info added
+    """
+    min_temps = []
+    max_temps = []
+    # avg_temps = []
+    for i, r in stops.iterrows():
+        xy = r['geometry'].xy
+        location_coords = (xy[1][0], xy[0][0]) # geometry locations are (E, N) not (N, E)...
+        elevation = r['elevation']
+        min_temp, max_temp, avg_temp = weather.location_design_temp(location_coords, elevation, num_years=num_years, percentiles=percentiles)
+        min_temps.append(min_temp)
+        max_temps.append(max_temp)
+
+    stops['max_temp'] = max_temps
+    stops['min_temp'] = min_temps
+    return stops
 
 def _stop_elevations(stops):
     """
@@ -132,6 +162,7 @@ def _elevation_from_shape(shapes):
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
+    import time
 
     inpath = '../data/full_greater_sydney_gtfs_static.zip'
 
@@ -139,9 +170,18 @@ if __name__=="__main__":
     route_desc = ['Sydney Buses Network']
     routes, trips, stops, stop_times, shapes = gtfs.read_busiest_week_data(inpath, route_short_names, route_desc)
 
-    stops = _stop_elevations(stops)
-    trip_summary = _summarise_trip_data(trips, stop_times, stops)
 
+    trip_summary = process(trips, stop_times, stops)
+    t1 = time.time()
+    stops = _stop_elevations(stops)
+    t2 = time.time()
+    print(t2-t1)
+
+    t1 = time.time()
+    stop = _stop_temperatures(stops, num_years=5)
+    t2 = time.time()
+    print(t2-t1)
+    trip_summary = _summarise_trip_data(trips, stop_times, stops)
 
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)
 
@@ -151,9 +191,6 @@ if __name__=="__main__":
     plt.xlabel('Hour of week')
     plt.ylabel('# buses')
     plt.show()
-
-    tmp = stop_times.groupby(by='unique_id')['elevation'].mean().reset_index(drop=True)
-
 
 
 
