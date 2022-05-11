@@ -15,6 +15,8 @@ install_requires = [
     'branca>=0.4',
     'SRTM.py>=0.3',
     'meteostat>=1.5',
+    'partridge>=1.1',
+    'tqdm>=4.64'
 ]
 
 if sys.version_info < (3, 7):
