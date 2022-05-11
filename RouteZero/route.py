@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import srtm
 import geopy.distance
+from tqdm import tqdm
 
 ## RouteZero modules
 import RouteZero.gtfs as gtfs
@@ -13,14 +14,17 @@ import RouteZero.weather as weather
                 Functions for processing route/trip data and appending information to this
 """
 
-def process(trips, stop_times, stops):
+def process(routes, trips, stop_times, stops, patronage):
     """
     Processes the gtfs data frames and summarises all relevant model input information in one data frame
     :param trips: gtfs trips data frame
     :param stop_times: gtfs stop_times data frame
     :param stops: gtfs stops data frame
+    :param patronage: peak passenger on route information
     :return: data frame summarising relevant model input information
     """
+    # add passenger info to trips
+    trips = _append_trip_patronage(routes, trips, patronage)
     # add elevatoin info to stops
     stops = _stop_elevations(stops)
     # add temperature data to stops
@@ -29,6 +33,19 @@ def process(trips, stop_times, stops):
     trip_summary = _summarise_trip_data(trips, stop_times, stops)
 
     return trip_summary
+
+
+def _append_trip_patronage(routes, trips, patronage):
+    """
+    appends passenger information to the trips data frame
+    :param routes: gtfs routes dataframe
+    :param trips: gtfs trips dataframe
+    :param patronage: dict with keys "route_short_name", "passengers" where each have value in a list
+    :return: trips dataframe with passenger information appended
+    """
+    patronage_df = pd.DataFrame.from_dict(patronage)
+    tmp_df = pd.merge(routes[['route_short_name','route_id']],patronage_df, how='left')
+    return pd.merge(trips, tmp_df[['route_id','passengers']])
 
 def _summarise_trip_data(trips, stop_times, stops):
     """
@@ -39,12 +56,12 @@ def _summarise_trip_data(trips, stop_times, stops):
     :return: trip_summary data frame
     """
     stop_times = stop_times.merge(stops[['stop_id', 'elevation','min_temp','max_temp']], how='left')
-    stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id','trip_id']], how='left')
+    stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id','trip_id','passengers']], how='left')
     stop_times.sort_values(by=['unique_id', 'direction_id', 'stop_sequence'], ascending=True, inplace=True)
     trip_start_stops = stop_times.groupby(by='unique_id').head(1).reset_index(drop=True)
     trip_end_stops = stop_times.groupby(by='unique_id').tail(1).reset_index(drop=True)
 
-    trip_summary = trip_start_stops[['unique_id','route_id', 'direction_id', 'shape_id', 'trip_id','date']].copy(deep=True)
+    trip_summary = trip_start_stops[['unique_id','route_id', 'direction_id', 'shape_id', 'trip_id','date','passengers']].copy(deep=True)
     trip_summary['trip_distance'] = (trip_end_stops['shape_dist_traveled'] - trip_start_stops['shape_dist_traveled']).to_numpy()
     trip_summary['trip_start_time'] = trip_start_stops['departure_time']
     trip_summary['trip_end_time'] = trip_end_stops['arrival_time']
@@ -97,7 +114,7 @@ def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
     return times, buses_in_traffic
 
 
-def _stop_temperatures(stops, num_years=5, percentiles=[1, 99]):
+def _stop_temperatures(stops, num_years=5, percentiles=[1, 99], disp=True):
     """
     determines the 'design' temperature for each stop location. The min temperature will be the percentile[0] temperature
     max temperature will be the percentile[1] temperature from the past num_years worth of recordings at the stop location
@@ -105,12 +122,13 @@ def _stop_temperatures(stops, num_years=5, percentiles=[1, 99]):
     :param stops: gtfs stops data frame with
     :param num_years: number of years worth of historical data to use
     :param percentiles: the percentiles used for extracting min and max temperature from the historical data
+    :param disp: adds progress bar
     :return: stops with min and max temperature info added
     """
     min_temps = []
     max_temps = []
     # avg_temps = []
-    for i, r in stops.iterrows():
+    for i, r in tqdm(stops.iterrows(), desc='Getting min and max location temperatures: ', disable=not disp):
         xy = r['geometry'].xy
         location_coords = (xy[1][0], xy[0][0]) # geometry locations are (E, N) not (N, E)...
         elevation = r['elevation']
@@ -122,15 +140,16 @@ def _stop_temperatures(stops, num_years=5, percentiles=[1, 99]):
     stops['min_temp'] = min_temps
     return stops
 
-def _stop_elevations(stops):
+def _stop_elevations(stops, disp=True):
     """
     adds elevation information to stops data frame
     :param stops: stops gtfs data frame
+    :param disp: adds progress bar
     :return: stops data frame with elevation info added
     """
     elevation_data = srtm.get_data()
     el = []
-    for i, r in stops.iterrows():
+    for i, r in tqdm(stops.iterrows(), desc='Getting elevations', disable=not disp):
         xy = r['geometry'].xy
         el.append(elevation_data.get_elevation(latitude=xy[1][0], longitude=xy[0][0]))
     stops['elevation'] = el
@@ -162,7 +181,6 @@ def _elevation_from_shape(shapes):
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
-    import time
 
     inpath = '../data/full_greater_sydney_gtfs_static.zip'
 
@@ -170,20 +188,12 @@ if __name__=="__main__":
     route_desc = ['Sydney Buses Network']
     routes, trips, stops, stop_times, shapes = gtfs.read_busiest_week_data(inpath, route_short_names, route_desc)
 
+    patronage = {"route_short_name": route_short_names, "passengers": [30, 40, 60, 45]}
 
-    trip_summary = process(trips, stop_times, stops)
-    # t1 = time.time()
-    # stops = _stop_elevations(stops)
-    # t2 = time.time()
-    # print(t2-t1)
-    #
-    # t1 = time.time()
-    # stop = _stop_temperatures(stops, num_years=5)
-    # t2 = time.time()
-    # print(t2-t1)
-    # trip_summary = _summarise_trip_data(trips, stop_times, stops)
 
+    trip_summary = process(routes,trips, stop_times, stops,patronage)
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)
+
 
 
     plt.plot(times/60,buses_in_traffic)
