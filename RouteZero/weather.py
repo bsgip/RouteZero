@@ -21,13 +21,13 @@ def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1
     start = [2021-num_years, 1, 1]
     end = [2021, 1, 1]
     data = historical_monthly_temperatures(start, end, location_coords, elevation)
-    data = data[['tavg','tmin','tmax']]
-    data.dropna(inplace=True)
+    temp_data = data[['tavg','tmin','tmax']].copy(deep=True)
+    temp_data.dropna(inplace=True)
     # std = np.std(data.tmin)
 
-    min_tmp = np.percentile(data.tmin, percentiles[0])
-    max_tmp = np.percentile(data.tmax, percentiles[1])
-    avg_tmp = np.mean(data.tavg)
+    min_tmp = np.percentile(temp_data.tmin, percentiles[0])
+    max_tmp = np.percentile(temp_data.tmax, percentiles[1])
+    avg_tmp = np.mean(temp_data.tavg)
     return min_tmp, max_tmp, avg_tmp
 
 def historical_daily_temperatures(start, end, location_coords, elevation):
@@ -40,8 +40,8 @@ def historical_daily_temperatures(start, end, location_coords, elevation):
 
     data = Daily(location, start, end)
     # data = Monthly(location, start, end)
-    data = data.fetch()
-    return data
+    df = data.fetch()
+    return df
 
 def historical_monthly_temperatures(start, end, location_coords, elevation):
     # start as list [year, month, day]
@@ -53,8 +53,8 @@ def historical_monthly_temperatures(start, end, location_coords, elevation):
 
     # data = Daily(location, start, end)
     data = Monthly(location, start, end)
-    data = data.fetch()
-    return data
+    df = data.fetch()
+    return df
 
 def typical_months_temperatures(month, location_coords, elevation):
     tavg_list = []

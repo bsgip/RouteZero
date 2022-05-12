@@ -45,7 +45,11 @@ def _append_trip_patronage(routes, trips, patronage):
     """
     patronage_df = pd.DataFrame.from_dict(patronage)
     tmp_df = pd.merge(routes[['route_short_name','route_id']],patronage_df, how='left')
-    return pd.merge(trips, tmp_df[['route_id','passengers']])
+    return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers']])
+
+
+# def _append_temperature():
+#     "gets temperature for the region of the trips"
 
 def _summarise_trip_data(trips, stop_times, stops):
     """
@@ -55,19 +59,23 @@ def _summarise_trip_data(trips, stop_times, stops):
     :param stops: gtfs stop data frame with elevation information added
     :return: trip_summary data frame
     """
-    stop_times = stop_times.merge(stops[['stop_id', 'elevation','min_temp','max_temp']], how='left')
-    stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id','trip_id','passengers']], how='left')
+    stop_times = stop_times.merge(stops[['stop_id', 'elevation','min_temp','max_temp','geometry']], how='left')
+    stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id',
+                                             'trip_id','route_short_name']], how='left')
     stop_times.sort_values(by=['unique_id', 'direction_id', 'stop_sequence'], ascending=True, inplace=True)
     trip_start_stops = stop_times.groupby(by='unique_id').head(1).reset_index(drop=True)
     trip_end_stops = stop_times.groupby(by='unique_id').tail(1).reset_index(drop=True)
 
-    trip_summary = trip_start_stops[['unique_id','route_id', 'direction_id', 'shape_id', 'trip_id','date','passengers']].copy(deep=True)
+    trip_summary = trip_start_stops[['unique_id','route_id', 'direction_id', 'shape_id',
+                                     'trip_id','date','route_short_name']].copy(deep=True)
     trip_summary['trip_distance'] = (trip_end_stops['shape_dist_traveled'] - trip_start_stops['shape_dist_traveled']).to_numpy()
     trip_summary['trip_start_time'] = trip_start_stops['departure_time']
     trip_summary['trip_end_time'] = trip_end_stops['arrival_time']
     trip_summary['trip_duration'] =  trip_summary['trip_end_time'] - trip_summary['trip_start_time']
     trip_summary['average_speed_mps'] = trip_summary['trip_distance'] / trip_summary['trip_duration']
     trip_summary['average_gradient_%'] = (trip_end_stops['elevation']-trip_start_stops['elevation'])/trip_summary['trip_distance'] * 100
+    trip_summary['start_loc'] = trip_start_stops['geometry']
+    trip_summary['end_loc'] = trip_end_stops['geometry']
 
     tmp = trip_summary[trip_summary['route_id'] == '74-320-sj2-1']
     plt.plot(tmp['trip_start_time']/3600,tmp['average_speed_mps'],'x')
@@ -89,6 +97,9 @@ def _summarise_trip_data(trips, stop_times, stops):
     # average design temps on trip
     trip_summary['min_temp'] = stop_times.groupby(by='unique_id')['min_temp'].mean().reset_index(drop=True)
     trip_summary['max_temp'] = stop_times.groupby(by='unique_id')['max_temp'].mean().reset_index(drop=True)
+
+    # average speed in km/h
+    trip_summary['average_speed_kmh'] = trip_summary['average_speed_mps']*3.6
 
     return trip_summary
 
@@ -128,16 +139,23 @@ def _stop_temperatures(stops, num_years=5, percentiles=[1, 99], disp=True):
     min_temps = []
     max_temps = []
     # avg_temps = []
-    for i, r in tqdm(stops.iterrows(), desc='Getting min and max location temperatures: ', disable=not disp):
-        xy = r['geometry'].xy
+    geoms = stops['geometry'].to_list()
+    elevation = stops['elevation'].to_list()
+    for i in tqdm(range(len(geoms)), desc='Getting min and max location temperatures: ', disable=not disp):
+        xy = geoms[i].xy
         location_coords = (xy[1][0], xy[0][0]) # geometry locations are (E, N) not (N, E)...
-        elevation = r['elevation']
-        min_temp, max_temp, avg_temp = weather.location_design_temp(location_coords, elevation, num_years=num_years, percentiles=percentiles)
+        el = elevation[i]
+        try:
+            min_temp, max_temp, avg_temp = weather.location_design_temp(location_coords, el, num_years=num_years, percentiles=percentiles)
+        except:
+            min_temp = np.nan
+            max_temp = np.nan
         min_temps.append(min_temp)
         max_temps.append(max_temp)
 
     stops['max_temp'] = max_temps
     stops['min_temp'] = min_temps
+
     return stops
 
 def _stop_elevations(stops, disp=True):
@@ -149,8 +167,9 @@ def _stop_elevations(stops, disp=True):
     """
     elevation_data = srtm.get_data()
     el = []
-    for i, r in tqdm(stops.iterrows(), desc='Getting elevations', disable=not disp):
-        xy = r['geometry'].xy
+    geoms = stops['geometry'].to_list()
+    for g in tqdm(geoms, desc='Getting elevations', disable=not disp):
+        xy = g.xy
         el.append(elevation_data.get_elevation(latitude=xy[1][0], longitude=xy[0][0]))
     stops['elevation'] = el
     return stops
@@ -184,12 +203,17 @@ if __name__=="__main__":
 
     inpath = '../data/full_greater_sydney_gtfs_static.zip'
 
-    route_short_names = ["305", "320", '389', '406']
-    route_desc = ['Sydney Buses Network']
+    routes_all = gtfs.read_route_desc_and_names(inpath)
+
+    route_short_names = routes_all['route_short_name'].to_list()
+    route_desc = routes_all['route_desc'].to_list()
+
+    # route_short_names = ["305", "320", '389', '406']
+    # route_desc = ['Sydney Buses Network']
     routes, trips, stops, stop_times, shapes = gtfs.read_busiest_week_data(inpath, route_short_names, route_desc)
 
-    patronage = {"route_short_name": route_short_names, "passengers": [30, 40, 60, 45]}
-
+    # patronage = {"route_short_name": route_short_names, "passengers": [30, 40, 60, 45]}
+    patronage = {"route_short_name": route_short_names, "passengers":[30]*len(route_short_names)}
 
     trip_summary = process(routes,trips, stop_times, stops,patronage)
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)

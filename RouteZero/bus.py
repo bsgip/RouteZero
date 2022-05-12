@@ -21,6 +21,7 @@ class Bus:
       self.charging_efficiency = charging_efficiency
       self.end_of_life_cap = end_of_life_cap
       self.usuable_capacity = battery_capacity * end_of_life_cap
+      self.soc = 1*self.usuable_capacity
 
 class Yutong(Bus):
    def __init__(self):
