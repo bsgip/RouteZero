@@ -205,15 +205,17 @@ if __name__=="__main__":
 
     routes_all = gtfs.read_route_desc_and_names(inpath)
 
-    route_short_names = routes_all['route_short_name'].to_list()
-    route_desc = routes_all['route_desc'].to_list()
+    # route_short_names = routes_all['route_short_name'].to_list()
+    # route_desc = routes_all['route_desc'].to_list()
 
     # route_short_names = ["305", "320", '389', '406']
-    # route_desc = ['Sydney Buses Network']
+    route_names_df = pd.read_csv('../data/zenobe_routes.csv')
+    route_short_names = route_names_df['route_short_name'].to_list()
+    route_desc = ['Sydney Buses Network']
+
     routes, trips, stops, stop_times, shapes = gtfs.read_busiest_week_data(inpath, route_short_names, route_desc)
 
-    # patronage = {"route_short_name": route_short_names, "passengers": [30, 40, 60, 45]}
-    patronage = {"route_short_name": route_short_names, "passengers":[30]*len(route_short_names)}
+    patronage = {"route_short_name": route_short_names, "passengers":[38]*len(route_short_names)}
 
     trip_summary = process(routes,trips, stop_times, stops,patronage)
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)
