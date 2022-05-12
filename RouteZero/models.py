@@ -40,17 +40,17 @@ class Model:
         return None
 
     def _build_hottest_day_regressor(self, trips_data, bus):
-        rc = self.rc[2]
-        dagg = self.driver_agg[2]
-        soc = bus.soc
+        rc = self.rc[1]
+        dagg = self.driver_agg[1]
+        soc = bus.get_soc_percent()
         temp = np.atleast_2d(trips_data['max_temp'].to_numpy()).T
         X = Model._build_regressor_matrix(trips_data, soc, rc, dagg, temp)
         return X
 
     def _build_coldest_day_regressor(self, trips_data, bus):
-        rc = self.rc[2]
-        dagg = self.driver_agg[2]
-        soc = bus.soc
+        rc = self.rc[1]
+        dagg = self.driver_agg[1]
+        soc = bus.get_soc_percent()    # state or charge as percent
         temp = np.atleast_2d(trips_data['min_temp'].to_numpy()).T
         X = Model._build_regressor_matrix(trips_data, soc, rc, dagg, temp)
         return X
@@ -67,10 +67,9 @@ class Model:
         """
             Place holder method to be overriden by child classes
         """
-        (r, c) = X.shape
-        return X @ np.ones((c,1))
+        return None
 
-    def predict(self, trips_data, bus):
+    def predict_hottest(self, trips_data, bus):
         X = self._build_hottest_day_regressor(trips_data, bus)
         y = self._predict(X)
         return y
@@ -133,6 +132,6 @@ if __name__=="__main__":
     trips_data = pd.read_csv('../data/test_trip_summary.csv')
     bus = ebus.BYD()
     model = LinearRegressionAbdelatyModel()
-    EC_km = model.predict(trips_data, bus)
+    EC_km = model.predict_hottest(trips_data, bus)
 
 

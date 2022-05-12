@@ -20,8 +20,11 @@ class Bus:
       self.net_mass = gross_mass - 65 * max_passengers
       self.charging_efficiency = charging_efficiency
       self.end_of_life_cap = end_of_life_cap
-      self.usuable_capacity = battery_capacity * end_of_life_cap
-      self.soc = 1*self.usuable_capacity
+      self.usable_capacity = battery_capacity * end_of_life_cap
+      self.soc = 1. * self.usable_capacity
+
+   def get_soc_percent(self):
+      return self.soc / self.usable_capacity * 100
 
 class Yutong(Bus):
    def __init__(self):
