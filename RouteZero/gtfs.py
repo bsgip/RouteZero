@@ -153,7 +153,7 @@ if __name__=="__main__":
     # all route short names and descriptions
     routes_all = read_route_desc_and_names(inpath)
     route_short_names_all = get_route_short_names(routes_all)
-    get_route_descriptions_all = get_route_descriptions(routes_all)
+    route_descriptions_all = get_route_descriptions(routes_all)
 
     # from which the user selects the ones they are interested in
     route_short_names = ["305", "320", '389', '406']
