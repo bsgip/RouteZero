@@ -35,6 +35,10 @@ def process(routes, trips, stop_times, stops, patronage):
     return trip_summary
 
 
+def append_patronage(trip_summary, patronage):
+    patronage_df = pd.DataFrame.from_dict(patronage)
+    return pd.merge(trip_summary, patronage_df[['route_short_name','passengers']], how='left')
+
 def _append_trip_patronage(routes, trips, patronage):
     """
     appends passenger information to the trips data frame
