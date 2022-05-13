@@ -3,6 +3,14 @@ Electric bus energy usage prediction given high level route information and depo
 
 ## Installation
 
+clone the repo and then
+```angular2html
+pip install .
+```
+
+then checkout scripts/UI_process_notebook.ipynb
+
+this will also require you to install jupyter packages and ipywidgets
 
 
 ## Design
