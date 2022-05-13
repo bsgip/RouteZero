@@ -72,7 +72,9 @@ class Model:
     def predict_hottest(self, trips_data, bus):
         X = self._build_hottest_day_regressor(trips_data, bus)
         y = self._predict(X)
-        return y
+        ec_km = y
+        ec_total = y * trips_data['trip_distance']/1000
+        return ec_km, ec_total
 
 
 class LinearRegressionAbdelatyModel(Model):
@@ -132,6 +134,6 @@ if __name__=="__main__":
     trips_data = pd.read_csv('../data/test_trip_summary.csv')
     bus = ebus.BYD()
     model = LinearRegressionAbdelatyModel()
-    EC_km = model.predict_hottest(trips_data, bus)
+    ec_km, ec_total = model.predict_hottest(trips_data, bus)
 
 
