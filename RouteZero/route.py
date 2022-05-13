@@ -35,9 +35,12 @@ def process(routes, trips, stop_times, stops, patronage):
     return trip_summary
 
 
-def append_patronage(trip_summary, patronage):
+def update_patronage(trip_summary, patronage):
+    if 'passengers' in trip_summary.columns:
+        trip_summary.drop(columns='passengers')
     patronage_df = pd.DataFrame.from_dict(patronage)
-    return pd.merge(trip_summary, patronage_df[['route_short_name','passengers']], how='left')
+    trip_summary = pd.merge(trip_summary, patronage_df[['route_short_name','passengers']], how='left')
+    return trip_summary
 
 def _append_trip_patronage(routes, trips, patronage):
     """
@@ -231,6 +234,7 @@ if __name__=="__main__":
     plt.xlabel('Hour of week')
     plt.ylabel('# buses')
     plt.show()
+
 
 
 
