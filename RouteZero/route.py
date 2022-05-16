@@ -110,12 +110,14 @@ def _summarise_trip_data(trips, stop_times, stops):
 
     return trip_summary
 
-def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
+def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10, trip_ec=None):
     """
     calculated the number of buses in traffic as a function of the hour of the week
     :param trip_summary: trip summary data frame
     :param deadhead: (default=0.1) ratio [0->1] of route time that is spent between routes
     :param resolution: (default=10) resolution of binning in minutes
+    :param trip_ec: (optional) energy consumption of each trip, if input then will return the departing trip energy
+                    requirements and the return trip energy consumed arrays
     :return: array containing number of buses on a route as a function of time of day
     """
 
@@ -129,7 +131,14 @@ def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
 
     buses_in_traffic = np.cumsum(c_starts) - np.cumsum(c_ends)
     times = time_slot_edges[:-1]
-    return times, buses_in_traffic
+
+    if trip_ec is not None:
+        depart_trip_energy_reqs = np.histogram(buffered_time_starts, bins=time_slot_edges, weights=trip_ec * (1 + deadhead))[0]
+        return_trip_enery_consumed = np.histogram(buffered_time_ends, bins=time_slot_edges, weights=trip_ec * (1 + deadhead))[0]
+        return times, buses_in_traffic, depart_trip_energy_reqs, return_trip_enery_consumed
+
+    else:
+        return times, buses_in_traffic
 
 
 def _stop_temperatures(stops, num_years=5, percentiles=[1, 99], disp=True):
