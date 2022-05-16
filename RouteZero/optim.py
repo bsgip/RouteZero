@@ -3,6 +3,8 @@ from scipy.ndimage import minimum_filter1d
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 
+from RouteZero.route import calc_buses_in_traffic
+
 # todo: add charging efficiency
 # todo: check energy prediction model stuff again....
 
@@ -167,7 +169,6 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     import matplotlib.pyplot as plt
     from RouteZero.models import LinearRegressionAbdelatyModel
-    from RouteZero.route import calc_buses_in_traffic
 
     # load saved leichhardt summary data
     # trips_data = pd.read_csv('../data/test_trip_summary.csv')
