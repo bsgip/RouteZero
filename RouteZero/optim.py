@@ -5,9 +5,6 @@ from pyomo.opt import SolverFactory
 
 from RouteZero.route import calc_buses_in_traffic
 
-# todo: add charging efficiency
-# todo: check energy prediction model stuff again....
-
 """
 
             Functions for performing the depot charging feasibility calculations
@@ -56,11 +53,31 @@ class base_problem():
         self.final_charge = final_charge
         self.reserve = reserve
         self.reserve_energy = reserve * num_buses * bus.battery_capacity
+        self.bus_eta = bus.charging_efficiency
 
     def _solve(self, model):
+        """
+        Solve pyomo model
+        """
         opt = SolverFactory('cbc')
         results = opt.solve(model)
         return results
+
+    def _p2e(self, x):
+        """
+        Converts charging power (kW) into battery energy (kWh) for the time period defined by resolution
+        """
+        return x * self.kw_to_kwh * self.bus_eta
+
+    def get_array(self, variable):
+        """
+        gets an array result from the solved pyomo model, variable should be the name of the pyomo model var
+        """
+        pyo_var = getattr(self.pyo_model, variable)
+        values = np.zeros((len(pyo_var),))
+        for i in range(len(pyo_var)):
+            values[i] = pyo_var[i].value
+        return values
 
 
 
@@ -89,15 +106,16 @@ class Feasibility_problem(base_problem):
         ## define some things
 
     def solve(self):
+        """
+        Solve pyomo model and return the results
+        """
         self.pyo_model = self._build_pyomo()
         status = self._solve(self.pyo_model)
 
-        x_array = np.zeros((self.num_times,))
-        for t in self.pyo_model.T:
-            x_array[t] = self.pyo_model.x[t].value
+        x_array = self.get_array('x')
 
         energy_available = self.start_charge * self.bus_capacity * self.num_buses \
-                           + np.cumsum(x_array)*self.kw_to_kwh - np.cumsum(self.return_trip_energy_cons)
+                           + np.cumsum(self._p2e(x_array)) - np.cumsum(self.return_trip_energy_cons)
 
         results = {"min_depot_connection":self.pyo_model.G.value, "min_number_chargers":self.pyo_model.Nc.value,
                    "final_charge_infeasibility":self.pyo_model.slack.value, "charging_power":x_array,
@@ -121,11 +139,15 @@ class Feasibility_problem(base_problem):
         model.Nc = pyo.Var(domain=pyo.Integers, bounds=(1, None))       # number of chargers
         model.G = pyo.Var(domain=pyo.Reals, bounds=(1, None))           # depot connection power (kW)
         model.slack = pyo.Var(domain=pyo.NonNegativeReals)
-        model.reg = pyo.Var(model.T, domain=pyo.NonNegativeReals)
+        model.reg = pyo.Var(model.Tminus, domain=pyo.NonNegativeReals)
 
         # model.obj = pyo.Objective(expr=model.G * self.Q + model.Nc * self.R + model.slack * 1e10, sense=pyo.minimize)
+        # model.obj = pyo.Objective(expr=model.G * self.Q + model.Nc * self.R + model.slack * 1e10
+        #                           + sum(model.reg[t] for t in model.Tminus)/100
+        #                           + sum(model.reg2[t]*100 for t in model.T), sense=pyo.minimize)
         model.obj = pyo.Objective(expr=model.G * self.Q + model.Nc * self.R + model.slack * 1e10
-                                  + sum(model.reg[t] for t in model.Tminus), sense=pyo.minimize)
+                                  + sum(model.reg[t] for t in model.Tminus)
+                                  + sum(model.x[t] for t in model.T), sense=pyo.minimize)
 
 
         # maximum charging
@@ -145,9 +167,9 @@ class Feasibility_problem(base_problem):
         model.max_charged = pyo.ConstraintList()
         for t in range(0, self.num_times):
             if t==0:
-                model.max_charged.add(model.x[0]*self.kw_to_kwh<=((1-self.start_charge)*self.num_buses*self.bus_capacity))
+                model.max_charged.add(self._p2e(model.x[0]) <= ((1-self.start_charge)*self.num_buses*self.bus_capacity))
             else:
-                model.max_charged.add(sum(model.x[i]*self.kw_to_kwh for i in range(t+1)) <=
+                model.max_charged.add(sum(self._p2e(model.x[i]) for i in range(t+1)) <=
                                       ((1-self.start_charge)*self.num_buses*self.bus_capacity) + sum(ER[k] for k in range(t)))
 
         # minimum charge limit
@@ -155,10 +177,11 @@ class Feasibility_problem(base_problem):
         for t in range(1, self.num_times):
            #  will be infeasible if starting charge not enough
             model.min_charged.add(self.start_charge*self.num_buses*self.bus_capacity - sum(ED[k] for k in range(t+1))
-                                  + sum(model.x[i]*self.kw_to_kwh for i in range(t)) >= self.reserve_energy)
+                                  + sum(self._p2e(model.x[i]) for i in range(t)) >= self.reserve_energy)
 
         # enforce battery finishes at least 80% charged
-        model.end_constraint = pyo.Constraint(expr=self.start_charge*self.num_buses*self.bus_capacity + sum(model.x[t]*self.kw_to_kwh-ED[t] for t in model.T)
+        model.end_constraint = pyo.Constraint(expr=self.start_charge*self.num_buses*self.bus_capacity
+                                                   + sum(self._p2e(model.x[t])-ED[t] for t in model.T)
                                                    + model.slack>=self.final_charge*self.num_buses*self.bus_capacity)
 
         return model
@@ -169,6 +192,7 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     import matplotlib.pyplot as plt
     from RouteZero.models import LinearRegressionAbdelatyModel
+    import time
 
     # load saved leichhardt summary data
     # trips_data = pd.read_csv('../data/test_trip_summary.csv')
@@ -182,13 +206,16 @@ if __name__=="__main__":
     resolution = 10             # mins
     charger_max_power = 150     # kW
     min_charge_time = 60     # mins
-    reserve = 0.2           # percent of all battery to keep in reserve [0-1]
+    reserve = 0.2          # percent of all battery to keep in reserve [0-1]
 
-    problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.9,
+    problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
                                   deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
 
-
+    t1 = time.time()
     results = problem.solve()
+    t2 = time.time()
+
+    print('Solve took {} seconds'.format(t2-t1))
 
     grid_con = results['min_depot_connection']
     num_chargers = results['min_number_chargers']
@@ -202,22 +229,28 @@ if __name__=="__main__":
     # plt.axhline(grid_con, linestyle='--', color='r')
     plt.xlabel('Hour of week')
     plt.ylabel('# buses')
+    plt.xlim([0, times[-1]/60])
 
     plt.subplot(3, 1, 2)
     plt.plot(times/60, charging_power)
-    plt.axhline(grid_con, linestyle='--', color='r')
+    plt.axhline(grid_con, linestyle='--', color='r',label='max grid power')
     plt.title('Grid power needed for charging')
     plt.xlabel('Hour of week')
     plt.ylabel('Power (kW)')
+    plt.xlim([0, times[-1] / 60])
+    plt.legend()
 
     plt.subplot(3, 1, 3)
     plt.plot(times/60, total_energy_avail)
-    plt.axhline(problem.final_charge*problem.num_buses*problem.bus_capacity, linestyle='--',color='k')
-    plt.axhline(problem.start_charge*problem.num_buses*problem.bus_capacity, linestyle='--',color='k')
-    plt.axhline(problem.reserve_energy, linestyle='--', color='r')
+    plt.axhline(problem.final_charge*problem.num_buses*problem.bus_capacity, linestyle='--',color='k',label='required end energy')
+    # plt.axhline(problem.start_charge*problem.num_buses*problem.bus_capacity, linestyle='--',color='k')
+    plt.axhline(problem.reserve_energy, linestyle='--', color='r', label='reserve')
     plt.xlabel('Hour of week')
     plt.ylabel('Energy available (kWh)')
     plt.title('Total battery energy available at depot')
+    plt.xlim([0, times[-1] / 60])
+    plt.ylim([0, problem.num_buses*problem.bus_capacity])
+    plt.legend()
 
     plt.tight_layout()
     plt.show()
