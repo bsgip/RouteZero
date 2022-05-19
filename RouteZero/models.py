@@ -76,6 +76,19 @@ class Model:
         ec_total = y * trips_data['trip_distance']/1000
         return ec_km, ec_total
 
+    def predict_worst_temp(self, trips_data, bus):
+        X = self._build_hottest_day_regressor(trips_data, bus)
+        y1 = self._predict(X)
+
+        X = self._build_coldest_day_regressor(trips_data, bus)
+        y2 = self._predict(X)
+
+        y = np.vstack([y1, y2]).max(axis=0)
+
+        ec_km = y
+        ec_total = y * trips_data['trip_distance']/1000
+        return ec_km, ec_total
+
 
 class LinearRegressionAbdelatyModel(Model):
     """
@@ -131,9 +144,10 @@ class LinearRegressionAbdelatyModel(Model):
 
 if __name__=="__main__":
     import RouteZero.bus as ebus
-    trips_data = pd.read_csv('../data/test_trip_summary.csv')
+    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    trips_data['passengers'] = 38
     bus = ebus.BYD()
     model = LinearRegressionAbdelatyModel()
-    ec_km, ec_total = model.predict_hottest(trips_data, bus)
+    ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
 
 

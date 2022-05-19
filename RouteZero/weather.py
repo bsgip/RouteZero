@@ -1,4 +1,3 @@
-# Import Meteostat library and dependencies
 from datetime import datetime, time, date
 from meteostat import Point, Daily, Monthly, Stations
 from calendar import monthrange
