@@ -1,9 +1,10 @@
 # Import Meteostat library and dependencies
 from datetime import datetime, time, date
-import matplotlib.pyplot as plt
-from meteostat import Point, Daily, Monthly
+from meteostat import Point, Daily, Monthly, Stations
 from calendar import monthrange
 import numpy as np
+from scipy.interpolate import CubicSpline
+
 
 
 def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1, 99]):
@@ -20,15 +21,16 @@ def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1
     """
     start = [2021-num_years, 1, 1]
     end = [2021, 1, 1]
-    data = historical_monthly_temperatures(start, end, location_coords, elevation)
+    data = historical_daily_temperatures(start, end, location_coords, elevation)
     temp_data = data[['tavg','tmin','tmax']].copy(deep=True)
     temp_data.dropna(inplace=True)
-    # std = np.std(data.tmin)
 
-    min_tmp = np.percentile(temp_data.tmin, percentiles[0])
-    max_tmp = np.percentile(temp_data.tmax, percentiles[1])
-    avg_tmp = np.mean(temp_data.tavg)
-    return min_tmp, max_tmp, avg_tmp
+    daily_low_min = np.percentile(temp_data.tmin, percentiles[0])
+    daily_low_max = np.percentile(temp_data.tmin, percentiles[1])
+    daily_high_min = np.percentile(temp_data.tmax, percentiles[0])
+    daily_high_max = np.percentile(temp_data.tmax, percentiles[1])
+
+    return daily_low_min, daily_low_max, daily_high_min, daily_high_max
 
 def historical_daily_temperatures(start, end, location_coords, elevation):
     # start as list [year, month, day]
@@ -76,29 +78,68 @@ def typical_months_temperatures(month, location_coords, elevation):
     tmax = np.vstack(tmax_list)
     return tavg.mean(axis=0), tmin.mean(axis=0), tmax.mean(axis=0)
 
+def daily_temp_profile(hour, low, high, low_hour=6, high_hour=15):
+
+    hours = [(high_hour-24), low_hour, high_hour, 24+low_hour, 24+high_hour]
+    temps = [high, low, high, low, high]
+    cs = CubicSpline(hours, temps, bc_type='periodic')
+
+    return cs(hour)
 
 if __name__=='__main__':
     import time
-    num_years = 5
-    location_coords = [-32.8960021, 151.734908] # for mayfield east
-    elevation = 100
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import geopandas as gpd
+    from shapely import wkt
 
-    start = [2021 - num_years, 1, 1]
+    # trips_data = pd.read_csv('../data/test_trip_summary.csv')
+    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    trips_data['passengers'] = 38
+
+    num_years = 5
+
+    start = [2021-num_years, 1, 1] #datetime.datetime(2021 - num_years, 1, 1)
     end = [2021, 1, 1]
 
-    t1 = time.time()
-    data = historical_daily_temperatures(start, end, location_coords, elevation)
-    t2 = time.time()
-    print(t2-t1)
+    df = trips_data.drop_duplicates('route_short_name')
 
-    plt.hist(data.tmin, bins=30)
-    plt.hist(data.tavg, bins=30)
-    plt.hist(data.tmax, bins=30)
-    plt.show()
+    for i, r in df.iterrows():
+        route_short_name = r['route_short_name']
 
-    min_temp, max_temp, avg_temp = location_design_temp(location_coords, elevation, num_years=10, percentiles=[1, 99])
+        inds = trips_data[trips_data.route_short_name==route_short_name].index
+        start_hour = np.mod(trips_data[trips_data.route_short_name==route_short_name].trip_start_time/3600, 24)
+        end_hour = np.mod(trips_data[trips_data.route_short_name == route_short_name].trip_end_time/3600, 24)
 
-    print('Design day min temp for mayfield = ', min_temp)
-    print('Design day max temp for mayfield = ', max_temp)
-    print('Design day average temp for mayfield = ', avg_temp)
+        x = r['start_loc_x']
+        y = r['start_loc_y']
+        el = r['start_el']
+        daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
+
+        t1 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
+        t2 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
+
+        t5 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
+        t6 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
+
+        x = r['end_loc_x']
+        y = r['end_loc_y']
+        el = r['end_el']
+
+        daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
+        t3 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
+        t4 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
+
+        t7 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
+        t8 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
+
+        temp_max = np.vstack([t1, t2, t3, t4]).max(axis=0)
+        temp_min = np.vstack([t5, t6, t7, t8]).min(axis=0)
+
+        trips_data.loc[inds, 'min_temp'] = temp_min
+        trips_data.loc[inds, 'max_temp'] = temp_max
+
+
+
+
 
