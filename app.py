@@ -1,6 +1,8 @@
 import os
 import inflection
 import pandas as pd
+import geopandas as gpd
+import numpy as np
 import plotly.express as px
 
 import dash_blueprint as dbp
@@ -16,7 +18,7 @@ app.css.config.serve_locally = True
 
 GTFS_FOLDER = "./data/gtfs"
 TRIP_FILENAME = "trip_data.csv"
-
+SHP_FILENAME = "shapes.shp"
 
 def get_gtfs_options():
     folders = [
@@ -30,6 +32,34 @@ def get_gtfs_options():
 def read_gtfs_file(gtfs_name):
     path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
     return pd.read_csv(path)
+
+def read_shp_file(gtfs_name):
+    path = os.path.join(GTFS_FOLDER, gtfs_name, SHP_FILENAME)
+    return gpd.read_file(path)
+
+
+def create_routes_map_figure(gtfs_name):
+    gdf = read_shp_file(gtfs_name)
+
+
+    lats = []
+    lons = []
+    names = []
+
+
+    for feature, name in zip(gdf.geometry, gdf.shape_id):
+        x, y = feature.xy
+        lats = np.append(lats, y)
+        lons = np.append(lons, x)
+        names = np.append(names, [name]*len(y))
+        lats = np.append(lats, None)
+        lons = np.append(lons, None)
+        names = np.append(names, None)
+
+    # fig = px.line_mapbox(gdf, geojson=gdf.geometry, locations=gdf.shape_id)
+    fig = px.line_mapbox(lat=lats, lon=lons, hover_name=names,
+                        mapbox_style="carto-positron", zoom=11)
+    return fig
 
 
 def get_routes(gtfs_name):
@@ -120,7 +150,10 @@ app.layout = html.Div(
         ),
         html.Div(
             className="main",
-            children=html.Div(id="results", children="No results available"),
+            children=[
+                html.Div(id="results-bus-number", children=None),
+                html.Div(id="results-route-map", children=None)
+            ],
         ),
     ],
 )
@@ -152,7 +185,7 @@ def get_route_selection_form(gtfs_name):
 
 
 @app.callback(
-    Output("results", "children"),
+    Output("results-bus-number", "children"),
     [Input("route-selector-confirm", "n_clicks")],
     [State("route-selector", "value"), State("gtfs-selector", "value")],
     prevent_initial_callbacks=True,
@@ -169,13 +202,26 @@ def calc_bus_number_output(n_clicks, routes, gtfs_name):
 @app.callback(
     Output("additional-information-form", "children"),
     [Input("route-selector-confirm", "n_clicks")],
-    [State("route-selection-form", "value"), State("gtfs-selector", "value")],
+    [State("route-selector", "value"), State("gtfs-selector", "value")],
     # prevent_initial_callbacks=True
 )
 def show_additional_options_form(n_clicks, routes, gtfs_file):
     if n_clicks:
         return html.Div(
             id="additional-information-form", children=create_additional_options()
+        )
+
+
+@app.callback(
+    Output("results-route-map", "children"),
+    [Input("confirm-additional-options", "n_clicks")],
+    [State("route-selector", "value"), State("gtfs-selector", "value")],
+    # prevent_initial_callbacks=True
+)
+def show_route_map(n_clicks, routes, gtfs_file):
+    if n_clicks:
+        return html.Div(
+            children=dcc.Graph(figure=create_routes_map_figure(gtfs_file))
         )
 
 
