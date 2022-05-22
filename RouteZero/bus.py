@@ -1,17 +1,19 @@
-
+"""
+         Module for defining a bus class to hold bus parameters
+"""
 
 
 class Bus:
    def __init__(self, max_passengers, battery_capacity, charging_rate, gross_mass,
-              charging_efficiency=0.9, end_of_life_cap=0.8):
+              charging_efficiency=0.95, end_of_life_cap=0.8):
       """
       initialises a bus object
       :param max_passengers: max number of passengers
       :param battery_capacity: battery capcity (kWH)
       :param charging_rate: maximum charging rate (kW)
       :param gross_mass: gross mass of the bus i.e. fully loaded (kg)
-      :param charging_efficiency: (default=0.9) charging efficiency [0->1]
-      :param end_of_life_cap: (default=0.9) percentage of battery capacity still remaining at end of battery life [0->1]
+      :param charging_efficiency: (default=0.95) charging efficiency [0->1]
+      :param end_of_life_cap: (default=0.8) percentage of battery capacity still remaining at end of battery life [0->1]
       """
       self.max_passengers = max_passengers
       self.battery_capacity = battery_capacity
@@ -33,7 +35,6 @@ class Yutong(Bus):
 class BYD(Bus):
    def __init__(self):
       Bus.__init__(self,74, 368, 80, 18000)
-
 
 if __name__=="__main__":
    bus = BYD()

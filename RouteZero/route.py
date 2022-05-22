@@ -27,10 +27,10 @@ def process(routes, trips, stop_times, stops, patronage):
     trips = _append_trip_patronage(routes, trips, patronage)
     # add elevatoin info to stops
     stops = _stop_elevations(stops)
-    # add temperature data to stops
-    stops = _stop_temperatures(stops)
     # summarise all model input data into one data frame
     trip_summary = _summarise_trip_data(trips, stop_times, stops)
+    # add temperature data to trip_summary
+    trip_summary = _trip_temperatures(trip_summary)
 
     return trip_summary
 
@@ -55,9 +55,6 @@ def _append_trip_patronage(routes, trips, patronage):
     return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers']])
 
 
-# def _append_temperature():
-#     "gets temperature for the region of the trips"
-
 def _summarise_trip_data(trips, stop_times, stops):
     """
     Summarises all pertinent information contained in trips and stop_times relevant to each unique trip
@@ -66,7 +63,7 @@ def _summarise_trip_data(trips, stop_times, stops):
     :param stops: gtfs stop data frame with elevation information added
     :return: trip_summary data frame
     """
-    stop_times = stop_times.merge(stops[['stop_id', 'elevation','min_temp','max_temp','geometry']], how='left')
+    stop_times = stop_times.merge(stops[['stop_id', 'elevation','geometry']], how='left')
     stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id',
                                              'trip_id','route_short_name']], how='left')
     stop_times.sort_values(by=['unique_id', 'direction_id', 'stop_sequence'], ascending=True, inplace=True)
@@ -81,8 +78,13 @@ def _summarise_trip_data(trips, stop_times, stops):
     trip_summary['trip_duration'] =  trip_summary['trip_end_time'] - trip_summary['trip_start_time']
     trip_summary['average_speed_mps'] = trip_summary['trip_distance'] / trip_summary['trip_duration']
     trip_summary['average_gradient_%'] = (trip_end_stops['elevation']-trip_start_stops['elevation'])/trip_summary['trip_distance'] * 100
-    trip_summary['start_loc'] = trip_start_stops['geometry']
-    trip_summary['end_loc'] = trip_end_stops['geometry']
+
+    trip_summary['start_loc_x'] = trip_start_stops['geometry'].values.x
+    trip_summary['start_loc_y'] = trip_start_stops['geometry'].values.y
+    trip_summary['start_el'] = trip_start_stops['elevation']
+    trip_summary['end_loc_x'] = trip_end_stops['geometry'].values.x
+    trip_summary['end_loc_y'] = trip_end_stops['geometry'].values.y
+    trip_summary['end_el'] = trip_end_stops['elevation']
 
     tmp = trip_summary[trip_summary['route_id'] == '74-320-sj2-1']
     plt.plot(tmp['trip_start_time']/3600,tmp['average_speed_mps'],'x')
@@ -101,21 +103,19 @@ def _summarise_trip_data(trips, stop_times, stops):
     # average elevation on trip
     trip_summary['av_elevation'] = stop_times.groupby(by='unique_id')['elevation'].mean().reset_index(drop=True)
 
-    # average design temps on trip
-    trip_summary['min_temp'] = stop_times.groupby(by='unique_id')['min_temp'].mean().reset_index(drop=True)
-    trip_summary['max_temp'] = stop_times.groupby(by='unique_id')['max_temp'].mean().reset_index(drop=True)
-
     # average speed in km/h
     trip_summary['average_speed_kmh'] = trip_summary['average_speed_mps']*3.6
 
     return trip_summary
 
-def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
+def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10, trip_ec=None):
     """
     calculated the number of buses in traffic as a function of the hour of the week
     :param trip_summary: trip summary data frame
     :param deadhead: (default=0.1) ratio [0->1] of route time that is spent between routes
     :param resolution: (default=10) resolution of binning in minutes
+    :param trip_ec: (optional) energy consumption of each trip, if input then will return the departing trip energy
+                    requirements and the return trip energy consumed arrays
     :return: array containing number of buses on a route as a function of time of day
     """
 
@@ -129,41 +129,75 @@ def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10):
 
     buses_in_traffic = np.cumsum(c_starts) - np.cumsum(c_ends)
     times = time_slot_edges[:-1]
-    return times, buses_in_traffic
+
+    if trip_ec is not None:
+        depart_trip_energy_reqs = np.histogram(buffered_time_starts, bins=time_slot_edges, weights=trip_ec * (1 + deadhead))[0]
+        return_trip_enery_consumed = np.histogram(buffered_time_ends, bins=time_slot_edges, weights=trip_ec * (1 + deadhead))[0]
+        return times, buses_in_traffic, depart_trip_energy_reqs, return_trip_enery_consumed
+
+    else:
+        return times, buses_in_traffic
 
 
-def _stop_temperatures(stops, num_years=5, percentiles=[1, 99], disp=True):
+def _trip_temperatures(trip_summary, num_years=5, percentiles=[1, 99], disp=True):
     """
-    determines the 'design' temperature for each stop location. The min temperature will be the percentile[0] temperature
+    determines the 'design' temperature for each trip. The min temperature will be the percentile[0] temperature
     max temperature will be the percentile[1] temperature from the past num_years worth of recordings at the stop location
     and elevation
-    :param stops: gtfs stops data frame with
+    :param stops: summarised trip data dataframe
     :param num_years: number of years worth of historical data to use
     :param percentiles: the percentiles used for extracting min and max temperature from the historical data
     :param disp: adds progress bar
-    :return: stops with min and max temperature info added
+    :return: trip_summary with temperature data added
     """
-    min_temps = []
-    max_temps = []
-    # avg_temps = []
-    geoms = stops['geometry'].to_list()
-    elevation = stops['elevation'].to_list()
-    for i in tqdm(range(len(geoms)), desc='Getting min and max location temperatures: ', disable=not disp):
-        xy = geoms[i].xy
-        location_coords = (xy[1][0], xy[0][0]) # geometry locations are (E, N) not (N, E)...
-        el = elevation[i]
-        try:
-            min_temp, max_temp, avg_temp = weather.location_design_temp(location_coords, el, num_years=num_years, percentiles=percentiles)
-        except:
-            min_temp = np.nan
-            max_temp = np.nan
-        min_temps.append(min_temp)
-        max_temps.append(max_temp)
+    trip_summary['max_temp'] = 0.
+    trip_summary['min_temp'] = 0.
 
-    stops['max_temp'] = max_temps
-    stops['min_temp'] = min_temps
+    df = trip_summary.drop_duplicates('route_short_name')
+    start_loc_x = df['start_loc_x'].to_numpy()
+    start_loc_y = df['start_loc_y'].to_numpy()
+    start_el = df['start_el'].to_numpy()
+    end_loc_x = df['end_loc_x'].to_numpy()
+    end_loc_y = df['end_loc_y'].to_numpy()
+    end_el = df['end_el'].to_numpy()
+    route_short_name = df['route_short_name'].to_list()
 
-    return stops
+    for i in tqdm(range(len(df)), desc='Getting min and max temperatures: ', disable=not disp):
+        name = route_short_name[i]
+
+        inds = trip_summary[trip_summary.route_short_name==name].index
+        start_hour = np.mod(trip_summary[trip_summary.route_short_name==name].trip_start_time/3600, 24)
+        end_hour = np.mod(trip_summary[trip_summary.route_short_name == name].trip_end_time/3600, 24)
+
+        x = start_loc_x[i]
+        y = start_loc_y[i]
+        el = start_el[i]
+        daily_low_min, daily_low_max, daily_high_min, daily_high_max = weather.location_design_temp([y, x], el)
+
+        t1 = weather.daily_temp_profile(start_hour, daily_low_max, daily_high_max)
+        t2 = weather.daily_temp_profile(end_hour, daily_low_max, daily_high_max)
+
+        t5 = weather.daily_temp_profile(start_hour, daily_low_min, daily_high_min)
+        t6 = weather.daily_temp_profile(end_hour, daily_low_min, daily_high_min)
+
+        x = end_loc_x[i]
+        y = end_loc_y[i]
+        el = end_el[i]
+
+        daily_low_min, daily_low_max, daily_high_min, daily_high_max = weather.location_design_temp([y, x], el)
+        t3 = weather.daily_temp_profile(start_hour, daily_low_max, daily_high_max)
+        t4 = weather.daily_temp_profile(end_hour, daily_low_max, daily_high_max)
+
+        t7 = weather.daily_temp_profile(start_hour, daily_low_min, daily_high_min)
+        t8 = weather.daily_temp_profile(end_hour, daily_low_min, daily_high_min)
+
+        temp_max = np.vstack([t1, t2, t3, t4]).max(axis=0)
+        temp_min = np.vstack([t5, t6, t7, t8]).min(axis=0)
+
+        trip_summary.loc[inds, 'min_temp'] = temp_min
+        trip_summary.loc[inds, 'max_temp'] = temp_max
+
+    return trip_summary
 
 def _stop_elevations(stops, disp=True):
     """
