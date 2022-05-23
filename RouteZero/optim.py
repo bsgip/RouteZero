@@ -13,6 +13,7 @@ from RouteZero.route import calc_buses_in_traffic
 
 # todo: add in battery efficiency
 # todo: add in battery regularisation
+# check battery charge is correct
 
 class base_problem():
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
@@ -77,6 +78,20 @@ class base_problem():
         energy_available = self.start_charge * self.bus_capacity * self.num_buses \
                            + np.cumsum(self._p2e(x_array)) - np.cumsum(self.return_trip_energy_cons)
 
+        bx_array = self.get_array('bx')
+
+        agg_power = bx_array + x_array
+
+        bv_array = self.get_array('bv')
+        battery_soc = np.cumsum(self.kw_to_kwh * bv_array)
+        if self.battery is not None:
+            beff = self.battery['efficiency']
+            battery_soc_test = np.cumsum(np.maximum(bx_array, 0)*beff*self.kw_to_kwh)+np.cumsum(np.minimum(0, bx_array)/beff*self.kw_to_kwh)
+            diff = battery_soc - battery_soc_test
+            if np.abs(diff).max() > 1e-1:
+                print('Warning: battery SOC might be innacurate')
+                battery_soc = battery_soc_test
+
         infeasibilty = np.max(np.abs(np.minimum(0, energy_available)))
 
         if infeasibilty > 0:
@@ -93,9 +108,11 @@ class base_problem():
                    "reserve_infease_%":self.pyo_model.reserve_slack.value/(self.num_buses*self.bus_capacity)*100,
                    "infeasibility":infeasibilty,
                    "infeasibility_%":infeasibilty/(self.num_buses*self.bus_capacity)*100,
-                   "num_chargers":self.pyo_model.Nc.value}
-
-
+                   "num_chargers":self.pyo_model.Nc.value,
+                   "battery_action":bx_array,
+                   "aggregate_power":agg_power,
+                   "battery_soc":battery_soc,
+                   "battery_soc_delta":bv_array}
 
 
         return results
@@ -113,7 +130,10 @@ class base_problem():
         pyo_var = getattr(self.pyo_model, variable)
         values = np.zeros((len(pyo_var),))
         for i in range(len(pyo_var)):
-            values[i] = pyo_var[i].value
+            if isinstance(pyo_var[i], float):
+                values[i] = pyo_var[i]
+            else:
+                values[i] = pyo_var[i].value
         return values
 
     def summarise_daily(self):
@@ -145,7 +165,6 @@ class base_problem():
         model.Tminus = range(self.num_times-1)
         model.x = pyo.Var(model.T, domain=pyo.NonNegativeReals)         # depot charging power (kW)
         model.end_slack = pyo.Var(domain=pyo.NonNegativeReals)
-        # model.empty_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reserve_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reg = pyo.Var(model.Tminus, domain=pyo.NonNegativeReals)
         if self.grid_limit=='optim':
@@ -154,8 +173,12 @@ class base_problem():
             model.G = pyo.Param(initialize=self.grid_limit)
         if self.battery is None:
             model.bx = pyo.Param(model.T, initialize=0.)
-            model.bcap = pyo.Param(initialize=0.)
-            model.bpower = pyo.Param(initialize=0.)
+            model.bv = pyo.Param(model.T, initialize=0.)
+        else:
+            model.bx = pyo.Var(model.T, domain=pyo.Reals, bounds=(-self.battery['power'],self.battery['power']))
+            model.bcap = pyo.Param(initialize=self.battery['capacity'])
+            model.bv = pyo.Var(model.T, domain=pyo.Reals)       # auxilliary variable for after charging efficiencies are applied
+            model.beff = pyo.Param(initialize=self.battery['efficiency'])
 
         self.add_chargers(model, self.chargers)
 
@@ -166,21 +189,12 @@ class base_problem():
             model.max_charge.add(model.x[t] <= self.Nt_avail[t]*np.minimum(self.chargers['power'],self.bus.charging_rate))
             model.max_charge.add(model.x[t] <= model.Nc*np.minimum(self.chargers['power'],self.bus.charging_rate))
             model.max_charge.add(model.x[t]+model.bx[t] <= model.G)
-            if self.battery is not None:
-                model.max_charge.add(model.bx[t] <= model.bpower)
+
 
         model.reg_con = pyo.ConstraintList()
         for t in range(self.num_times-1):
             model.reg_con.add(model.reg[t] >= model.x[t+1] - model.x[t])
             model.reg_con.add(model.reg[t] >= -(model.x[t + 1] - model.x[t]))
-
-
-        if self.battery is not None:
-            model.b_cap_con = pyo.ConstraintList()
-            for t in range(self.num_times):
-                model.b_cap_con.add(sum(model.bx[k] for k in range(t)) >= 0)
-                model.b_cap_con.add(sum(model.bx[k] for k in range(t)) <= 0)
-
 
         # maximim charge limit
         model.max_charged = pyo.ConstraintList()
@@ -201,10 +215,25 @@ class base_problem():
             #                       - sum(self.depart_trip_energy_req[k] for k in range(t + 1)) + sum(self._p2e(model.x[i]) for i in range(t))
             #                       + model.empty_slack >= 0.)
 
-        # enforce battery finishes at least 80% charged
+        # enforce aggregate bus battery finishes at least 80% charged
         model.end_constraint = pyo.Constraint(expr=self.start_charge*self.num_buses*self.bus_capacity
                                                    + sum(self._p2e(model.x[t])-self.depart_trip_energy_req[t] for t in model.T)
                                                    + model.end_slack>=self.final_charge*self.num_buses*self.bus_capacity)
+
+        # depot battery stuff
+        if self.battery is not None:
+            model.v_discharge_con = pyo.ConstraintList()
+            model.v_charge_con = pyo.ConstraintList()
+
+            for t in model.T:
+                model.v_charge_con.add(model.bv[t] <= model.beff * model.bx[t])
+                model.v_discharge_con.add(model.bv[t] <= model.bx[t] / model.beff)
+
+            model.bsoc_min = pyo.ConstraintList()
+            model.bsoc_max = pyo.ConstraintList()
+            for t in range(1, self.num_times + 1): # assumes battery starts empty
+                model.bsoc_min.add(0.0 + sum(model.bv[i] for i in range(t))*self.kw_to_kwh >= 0.)
+                model.bsoc_max.add(0.0 + sum(model.bv[i] for i in range(t))*self.kw_to_kwh <= model.bcap)
 
         return model
 
@@ -258,7 +287,7 @@ class Immediate_charge_problem(base_problem):
 
 class Feasibility_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, charger_max_power, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=1000, R=100, reserve=0.2):
+                 resolution=10, min_charge_time=60, Q=1000, R=100, reserve=0.2, battery=None):
         """
 
         :param trips_data: the summarised trips dataframe
@@ -272,10 +301,11 @@ class Feasibility_problem(base_problem):
         :param R: (default=10) cost on number of chargers
         :param start_charge: percentage starting battery capacity [0-1]
         :param final_charge: required final state of charge percentage [0-1]
+        :param battery: dictionary containing battery specifications: (capacity, efficiency, power)
         """
         chargers = {'power':charger_max_power,'number':'optim'}
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit='optim', deadhead=deadhead, resolution=resolution,reserve=reserve,
-                         min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge)
+                         min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge, battery=battery)
         self.Q = Q
         self.R = R
 
@@ -311,11 +341,15 @@ if __name__=="__main__":
     deadhead = 0.1              # percent [0-1]
     resolution = 10             # mins
     charger_max_power = 150     # kW
-    min_charge_time = 2*60     # mins
+    min_charge_time = 1*60     # mins
     reserve = 0.2          # percent of all battery to keep in reserve [0-1]
 
+    battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
+    # battery=None
+
     problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
-                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
+                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+                                  battery=battery)
 
     # chargers = {'power':300, 'number':80}
     # grid_power = 5000
@@ -331,8 +365,11 @@ if __name__=="__main__":
 
     grid_limit = results['grid_limit']
     # num_chargers = results['min_number_chargers']
+    battery_power = results['battery_action']
     charging_power = results['charging_power']
     total_energy_avail = results['total_energy_available']
+    battery_soc = results['battery_soc']
+    aggregate_power = results['aggregate_power']
     times = problem.times
 
     plt.subplot(3, 1, 1)
@@ -343,7 +380,9 @@ if __name__=="__main__":
     plt.xlim([0, times[-1]/60])
 
     plt.subplot(3, 1, 2)
-    plt.plot(times/60, charging_power)
+    plt.plot(times/60, charging_power, label='bus')
+    plt.plot(times/60, aggregate_power, label='aggregate')
+    plt.plot(times/60, battery_power, label='battery')
     plt.axhline(grid_limit, linestyle='--', color='r',label='max grid power')
     plt.title('Grid power needed for charging')
     plt.xlabel('Hour of week')

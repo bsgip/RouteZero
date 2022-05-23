@@ -5,10 +5,6 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 import pandas as pd
 
-record_lats = [-33.9297, -33.9059, -33.8675]
-record_lons = [151.1951, 151.2021, 151.207]
-
-
 class TemperatureData():
     """
     A class for working with the historical hourly temperature data that we have scraped
