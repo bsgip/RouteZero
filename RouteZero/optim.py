@@ -11,11 +11,12 @@ from RouteZero.route import calc_buses_in_traffic
 
 """
 
-# todo: used fixed variables to solve whether optional optimisation things
+# todo: add in battery efficiency
+# todo: add in battery regularisation
 
 class base_problem():
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
-                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2):
+                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None):
         times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = calc_buses_in_traffic(trips_data,
                                                                                                          deadhead,
                                                                                                          resolution,
@@ -33,6 +34,8 @@ class base_problem():
 
         if chargers is None:
             chargers = {'power':300,'number':'optim'}
+
+        # battery = {'power':500, "capacity":2000,"efficiency":0.9}
 
         self.deadhead = deadhead
         self.resolution = resolution
@@ -57,6 +60,7 @@ class base_problem():
         self.reserve = reserve
         self.reserve_energy = reserve * num_buses * bus.battery_capacity
         self.bus_eta = bus.charging_efficiency
+        self.battery = battery
 
     def _solve(self, model):
         """
@@ -67,18 +71,30 @@ class base_problem():
 
         if model.reserve_slack.value > 0:
             print('Reserve not achieved')
-        if model.empty_slack.value > 0:
-            print('Charging infeasible')
 
         x_array = self.get_array('x')
 
         energy_available = self.start_charge * self.bus_capacity * self.num_buses \
                            + np.cumsum(self._p2e(x_array)) - np.cumsum(self.return_trip_energy_cons)
 
-        results = {"final_charge_infeasibility":self.pyo_model.end_slack.value, "charging_power":x_array,
+        infeasibilty = np.max(np.abs(np.minimum(0, energy_available)))
+
+        if infeasibilty > 0:
+            print('charging not feasible')
+
+
+        results = {"charging_power":x_array,
                    "total_energy_available":energy_available,
-                   "final_charge_infeas_percent": self.pyo_model.end_slack.value/(self.num_buses*self.bus_capacity)*100,
-                   "grid_limit":self.pyo_model.G.value, "status":status}
+                   "final_soc_infeas": self.pyo_model.end_slack.value,
+                   "final_soc_infeas_%": self.pyo_model.end_slack.value/(self.num_buses*self.bus_capacity)*100,
+                   "grid_limit":self.pyo_model.G.value,
+                   "status":status,
+                   "reserve_infeas":self.pyo_model.reserve_slack.value,
+                   "reserve_infease_%":self.pyo_model.reserve_slack.value/(self.num_buses*self.bus_capacity)*100,
+                   "infeasibility":infeasibilty,
+                   "infeasibility_%":infeasibilty/(self.num_buses*self.bus_capacity)*100}
+
+
 
         return results
 
@@ -108,8 +124,9 @@ class base_problem():
         return used_daily, charged_daily
 
     def base_objective(self, model):
-        return model.end_slack * 1e10 + model.reserve_slack * 1e10 + model.empty_slack * 1e10 \
-               + sum(model.reg[t] for t in model.Tminus)  + sum(model.x[t] for t in model.T)
+        return model.end_slack * 1e10 + model.reserve_slack * 1e10  \
+               + sum(model.reg[t] for t in model.Tminus)  + sum(model.x[t] for t in model.T) \
+               + sum(model.bx[t] for t in model.T)
 
     def add_chargers(self, model, chargers):
         if chargers['number']=='optim':
@@ -126,13 +143,17 @@ class base_problem():
         model.Tminus = range(self.num_times-1)
         model.x = pyo.Var(model.T, domain=pyo.NonNegativeReals)         # depot charging power (kW)
         model.end_slack = pyo.Var(domain=pyo.NonNegativeReals)
-        model.empty_slack = pyo.Var(domain=pyo.NonNegativeReals)
+        # model.empty_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reserve_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reg = pyo.Var(model.Tminus, domain=pyo.NonNegativeReals)
         if self.grid_limit=='optim':
             model.G = pyo.Var(domain=pyo.Reals, bounds=(1, None))           # depot connection power (kW)
         else:
             model.G = pyo.Param(initialize=self.grid_limit)
+        if self.battery is None:
+            model.bx = pyo.Param(model.T, initialize=0.)
+            model.bcap = pyo.Param(initialize=0.)
+            model.bpower = pyo.Param(initialize=0.)
 
         self.add_chargers(model, self.chargers)
 
@@ -142,12 +163,21 @@ class base_problem():
         for t in range(self.num_times):
             model.max_charge.add(model.x[t] <= self.Nt_avail[t]*np.minimum(self.chargers['power'],self.bus.charging_rate))
             model.max_charge.add(model.x[t] <= model.Nc*np.minimum(self.chargers['power'],self.bus.charging_rate))
-            model.max_charge.add(model.x[t] <= model.G)
+            model.max_charge.add(model.x[t]+model.bx[t] <= model.G)
+            if self.battery is not None:
+                model.max_charge.add(model.bx[t] <= model.bpower)
 
         model.reg_con = pyo.ConstraintList()
         for t in range(self.num_times-1):
             model.reg_con.add(model.reg[t] >= model.x[t+1] - model.x[t])
             model.reg_con.add(model.reg[t] >= -(model.x[t + 1] - model.x[t]))
+
+
+        if self.battery is not None:
+            model.b_cap_con = pyo.ConstraintList()
+            for t in range(self.num_times):
+                model.b_cap_con.add(sum(model.bx[k] for k in range(t)) >= 0)
+                model.b_cap_con.add(sum(model.bx[k] for k in range(t)) <= 0)
 
 
         # maximim charge limit
@@ -165,9 +195,9 @@ class base_problem():
            #  will be infeasible if starting charge not enough
             model.min_charged.add(self.start_charge*self.num_buses*self.bus_capacity - sum(self.depart_trip_energy_req[k] for k in range(t+1))
                                   + sum(self._p2e(model.x[i]) for i in range(t)) + model.reserve_slack >= self.reserve_energy)
-            model.min_charged.add(self.start_charge * self.num_buses * self.bus_capacity
-                                  - sum(self.depart_trip_energy_req[k] for k in range(t + 1)) + sum(self._p2e(model.x[i]) for i in range(t))
-                                  + model.empty_slack >= 0.)
+            # model.min_charged.add(self.start_charge * self.num_buses * self.bus_capacity
+            #                       - sum(self.depart_trip_energy_req[k] for k in range(t + 1)) + sum(self._p2e(model.x[i]) for i in range(t))
+            #                       + model.empty_slack >= 0.)
 
         # enforce battery finishes at least 80% charged
         model.end_constraint = pyo.Constraint(expr=self.start_charge*self.num_buses*self.bus_capacity
@@ -282,13 +312,13 @@ if __name__=="__main__":
     min_charge_time = 2*60     # mins
     reserve = 0.2          # percent of all battery to keep in reserve [0-1]
 
-    # problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
-    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
-
-    chargers = {'power':300, 'number':80}
-    grid_power = 5000
-    problem = Immediate_charge_problem(trips_data, ec_total, bus, chargers, grid_power, start_charge=0.9, final_charge=0.8,
+    problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
                                   deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
+
+    # chargers = {'power':300, 'number':80}
+    # grid_power = 5000
+    # problem = Immediate_charge_problem(trips_data, ec_total, bus, chargers, grid_power, start_charge=0.9, final_charge=0.8,
+    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
 
 
     t1 = time.time()
