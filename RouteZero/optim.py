@@ -92,7 +92,9 @@ class base_problem():
                    "reserve_infeas":self.pyo_model.reserve_slack.value,
                    "reserve_infease_%":self.pyo_model.reserve_slack.value/(self.num_buses*self.bus_capacity)*100,
                    "infeasibility":infeasibilty,
-                   "infeasibility_%":infeasibilty/(self.num_buses*self.bus_capacity)*100}
+                   "infeasibility_%":infeasibilty/(self.num_buses*self.bus_capacity)*100,
+                   "num_chargers":self.pyo_model.Nc.value}
+
 
 
 
