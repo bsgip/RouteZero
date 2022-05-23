@@ -156,7 +156,8 @@ if __name__=="__main__":
     route_descriptions_all = get_route_descriptions(routes_all)
 
     # from which the user selects the ones they are interested in
-    route_short_names = ["305", "320", '389', '406']
+    # route_short_names = ["305", "320", '389', '406']
+    route_short_names = ["526"]
     route_desc = ['Sydney Buses Network']
 
     routes, trips, stops, stop_times, shapes = read_busiest_week_data(inpath, route_short_names, route_desc)
