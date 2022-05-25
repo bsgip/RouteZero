@@ -16,7 +16,8 @@ install_requires = [
     'SRTM.py>=0.3',
     'meteostat>=1.5',
     'partridge>=1.1',
-    'tqdm>=4.64'
+    'tqdm>=4.64',
+    'geopandas>=0.10'
 ]
 
 if sys.version_info < (3, 7):
