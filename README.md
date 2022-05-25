@@ -12,6 +12,13 @@ then checkout scripts/UI_process_notebook.ipynb
 
 this will also require you to install jupyter packages and ipywidgets
 
+### For the UI
+
+```angular2html
+pip install dash
+pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
+```
+
 
 ## Design
 
