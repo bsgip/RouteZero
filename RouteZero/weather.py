@@ -1,4 +1,4 @@
-from datetime import datetime, time, date
+from datetime import datetime, time, date, timedelta
 from meteostat import Point, Daily, Monthly, Stations
 from calendar import monthrange
 import numpy as np
@@ -41,7 +41,7 @@ class TemperatureData():
 
 
 
-def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1, 99]):
+def location_design_temp(location_coords, elevation, num_years=5, percentiles=(1, 99)):
     """
     Determines the design day max and min temperatures for a location by looking at num_years
     historical daily temperature data. For the min temperature we use the percentiles[0] value
@@ -53,11 +53,7 @@ def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1
     :param percentiles: (default=[1,99]) the upper and lower percentiles for temperatures to consider
     :return: min_temp, max_temp, avg_temp
     """
-    start = [2021-num_years, 1, 1]
-    end = [2021, 1, 1]
-    data = historical_daily_temperatures(start, end, location_coords, elevation)
-    temp_data = data[['tavg','tmin','tmax']].copy(deep=True)
-    temp_data.dropna(inplace=True)
+    temp_data = historical_daily_temperatures(num_years, location_coords, elevation)
 
     daily_low_min = np.percentile(temp_data.tmin, percentiles[0])
     daily_low_max = np.percentile(temp_data.tmin, percentiles[1])
@@ -66,18 +62,34 @@ def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1
 
     return daily_low_min, daily_low_max, daily_high_min, daily_high_max
 
-def historical_daily_temperatures(start, end, location_coords, elevation):
-    # start as list [year, month, day]
-    # end as list [year, month, day]
-    start = datetime(start[0], start[1], start[2])
-    end = datetime(end[0], end[1], end[2])
-    location = Point(location_coords[0], location_coords[1], alt=elevation)
-    # location.method = 'weighted'  # method can also be nearest (default) or weighted
+def historical_daily_temperatures(num_years, location_coords, elevation):
+    stations = Stations()
+    station = stations.nearby(location_coords[0], location_coords[1])
+    station_df = station.fetch()
+    station_df = station_df[station_df.daily_end.notnull()]
+    station_df = station_df[station_df.daily_start.notnull()]
 
-    data = Daily(location, start, end)
-    # data = Monthly(location, start, end)
-    df = data.fetch()
-    return df
+    station_df = station_df[station_df.daily_end.notnull()]
+    station_df = station_df[station_df.daily_start.notnull()]
+    station_df = station_df.sort_values(by='distance')
+
+    for i in range(len(station_df)):
+        nearest = station_df.iloc[i]
+
+        date_end = nearest['daily_end']
+        date_start = date_end - timedelta(days=365.25*num_years)
+
+        daily = Daily(nearest.name,date_start, date_end)
+        data = daily.fetch()
+
+        temp_data = data[['tmin','tmax']].copy(deep=True)
+        temp_data.dropna(inplace=True)
+
+        if len(temp_data) > 100:
+             break
+
+
+    return temp_data
 
 def historical_monthly_temperatures(start, end, location_coords, elevation):
     # start as list [year, month, day]
@@ -126,6 +138,7 @@ if __name__=='__main__':
     # import pandas as pd
     import geopandas as gpd
     from shapely import wkt
+
     from sklearn.metrics.pairwise import haversine_distances
 
     weather_df = pd.read_csv("../data/routezero_weather.csv")
