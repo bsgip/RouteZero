@@ -16,7 +16,8 @@ install_requires = [
     'SRTM.py>=0.3',
     'meteostat>=1.5',
     'partridge>=1.1',
-    'tqdm>=4.64'
+    'tqdm>=4.64',
+    'geopandas>=0.10'
 ]
 
 if sys.version_info < (3, 7):
@@ -30,7 +31,7 @@ if sys.version_info < (3, 7):
 
 setuptools.setup(
     name="RouteZero",
-    version="0.0.4",
+    version="0.0.7",
     description="Electric bus energy usage prediction and depot charging feasibility. ",
     long_description=long_description,
     long_description_content_type="text/markdown",

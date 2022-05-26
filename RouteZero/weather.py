@@ -1,12 +1,47 @@
-from datetime import datetime, time, date
+from datetime import datetime, time, date, timedelta
 from meteostat import Point, Daily, Monthly, Stations
 from calendar import monthrange
 import numpy as np
 from scipy.interpolate import CubicSpline
+import pandas as pd
+
+class TemperatureData():
+    """
+    A class for working with the historical hourly temperature data that we have scraped
+    """
+    def __init__(self, datafile):
+        """
+        init function
+        :param datafile: path to csv
+        """
+        df = pd.read_csv(datafile)
+        df['datetime'] = pd.to_datetime(df['dt'], unit='s')
+        gb = df.groupby('lat')
+        self.station_dfs = [x[1].reset_index() for x in gb]
+        self.station_locs = np.array([[x['lat'][0], x['lon'][0]] for x in self.station_dfs])
+
+    def __call__(self, latitude, longitude, datetime):
+        """
+        Returns the temperature recorded at the station nearest to (latitude, longitude) at the closest time to datetime
+        :param latitude: latitude in degrees
+        :param longitude: longitude in degrees
+        :param datetime: datetime to get temperature of
+        :return:
+        """
+        p2 = np.array([[latitude, longitude]])
+        d = haversine_distances(np.deg2rad(self.station_locs), np.deg2rad(p2))
+        station_ind = np.argmin(d)      # index of closest station
+        df = self.station_dfs[station_ind]
+        dt_ind = np.argmin((datetime-df['datetime']).abs())       # closest recording in time
+        temp = df.loc[dt_ind, 'temp']
+
+        return temp
 
 
 
-def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1, 99]):
+
+
+def location_design_temp(location_coords, elevation, num_years=5, percentiles=(1, 99)):
     """
     Determines the design day max and min temperatures for a location by looking at num_years
     historical daily temperature data. For the min temperature we use the percentiles[0] value
@@ -18,11 +53,7 @@ def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1
     :param percentiles: (default=[1,99]) the upper and lower percentiles for temperatures to consider
     :return: min_temp, max_temp, avg_temp
     """
-    start = [2021-num_years, 1, 1]
-    end = [2021, 1, 1]
-    data = historical_daily_temperatures(start, end, location_coords, elevation)
-    temp_data = data[['tavg','tmin','tmax']].copy(deep=True)
-    temp_data.dropna(inplace=True)
+    temp_data = historical_daily_temperatures(num_years, location_coords, elevation)
 
     daily_low_min = np.percentile(temp_data.tmin, percentiles[0])
     daily_low_max = np.percentile(temp_data.tmin, percentiles[1])
@@ -31,18 +62,34 @@ def location_design_temp(location_coords, elevation, num_years=5, percentiles=[1
 
     return daily_low_min, daily_low_max, daily_high_min, daily_high_max
 
-def historical_daily_temperatures(start, end, location_coords, elevation):
-    # start as list [year, month, day]
-    # end as list [year, month, day]
-    start = datetime(start[0], start[1], start[2])
-    end = datetime(end[0], end[1], end[2])
-    location = Point(location_coords[0], location_coords[1], alt=elevation)
-    # location.method = 'weighted'  # method can also be nearest (default) or weighted
+def historical_daily_temperatures(num_years, location_coords, elevation):
+    stations = Stations()
+    station = stations.nearby(location_coords[0], location_coords[1])
+    station_df = station.fetch()
+    station_df = station_df[station_df.daily_end.notnull()]
+    station_df = station_df[station_df.daily_start.notnull()]
 
-    data = Daily(location, start, end)
-    # data = Monthly(location, start, end)
-    df = data.fetch()
-    return df
+    station_df = station_df[station_df.daily_end.notnull()]
+    station_df = station_df[station_df.daily_start.notnull()]
+    station_df = station_df.sort_values(by='distance')
+
+    for i in range(len(station_df)):
+        nearest = station_df.iloc[i]
+
+        date_end = nearest['daily_end']
+        date_start = date_end - timedelta(days=365.25*num_years)
+
+        daily = Daily(nearest.name,date_start, date_end)
+        data = daily.fetch()
+
+        temp_data = data[['tmin','tmax']].copy(deep=True)
+        temp_data.dropna(inplace=True)
+
+        if len(temp_data) > 100:
+             break
+
+
+    return temp_data
 
 def historical_monthly_temperatures(start, end, location_coords, elevation):
     # start as list [year, month, day]
@@ -88,55 +135,88 @@ def daily_temp_profile(hour, low, high, low_hour=6, high_hour=15):
 if __name__=='__main__':
     import time
     import matplotlib.pyplot as plt
-    import pandas as pd
+    # import pandas as pd
     import geopandas as gpd
     from shapely import wkt
 
-    # trips_data = pd.read_csv('../data/test_trip_summary.csv')
+    from sklearn.metrics.pairwise import haversine_distances
+
+    weather_df = pd.read_csv("../data/routezero_weather.csv")
+    weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
+
     trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
-    trips_data['passengers'] = 38
 
-    num_years = 5
+    station_lats = weather_df['lat'].unique()
+    station_lons = weather_df['lon'].unique()
 
-    start = [2021-num_years, 1, 1] #datetime.datetime(2021 - num_years, 1, 1)
-    end = [2021, 1, 1]
+    latitude = trips_data['start_loc_y'].to_numpy()[0]
+    longitude = trips_data['start_loc_x'].to_numpy()[0]
 
-    df = trips_data.drop_duplicates('route_short_name')
+    # p1 = np.deg2rad(np.array([[latitude, longitude]]))
+    # p2 = np.deg2rad(np.array([[weather_df['lat'].to_numpy()[0], weather_df['lon'].to_numpy()[0]]]))
 
-    for i, r in df.iterrows():
-        route_short_name = r['route_short_name']
+    temps = TemperatureData("../data/routezero_weather.csv")
+    d = temps(latitude=latitude, longitude=longitude, datetime=weather_df['datetime'][0])
 
-        inds = trips_data[trips_data.route_short_name==route_short_name].index
-        start_hour = np.mod(trips_data[trips_data.route_short_name==route_short_name].trip_start_time/3600, 24)
-        end_hour = np.mod(trips_data[trips_data.route_short_name == route_short_name].trip_end_time/3600, 24)
+    # lat1 = latitude
+    # lon1 = longitude
+    #
+    # lat2 = weather_df['lat'].to_numpy()[0]
+    # lon2 = weather_df['lon'].to_numpy()[0]
+    #
+    # # haversine formula
+    # R = 7371
+    # dLat = np.deg2rad(lat1 - lat2)
+    # dLon = np.deg2rad(lon1 - lon2)
+    # a = np.sin(dLat / 2) * np.sin(dLat / 2) + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dLon / 2) * np.sin(dLon / 2)
+    # c =
 
-        x = r['start_loc_x']
-        y = r['start_loc_y']
-        el = r['start_el']
-        daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
 
-        t1 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
-        t2 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
 
-        t5 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
-        t6 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
 
-        x = r['end_loc_x']
-        y = r['end_loc_y']
-        el = r['end_el']
-
-        daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
-        t3 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
-        t4 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
-
-        t7 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
-        t8 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
-
-        temp_max = np.vstack([t1, t2, t3, t4]).max(axis=0)
-        temp_min = np.vstack([t5, t6, t7, t8]).min(axis=0)
-
-        trips_data.loc[inds, 'min_temp'] = temp_min
-        trips_data.loc[inds, 'max_temp'] = temp_max
+    # trips_data['passengers'] = 38
+    #
+    # num_years = 5
+    #
+    # start = [2021-num_years, 1, 1] #datetime.datetime(2021 - num_years, 1, 1)
+    # end = [2021, 1, 1]
+    #
+    # df = trips_data.drop_duplicates('route_short_name')
+    #
+    # for i, r in df.iterrows():
+    #     route_short_name = r['route_short_name']
+    #
+    #     inds = trips_data[trips_data.route_short_name==route_short_name].index
+    #     start_hour = np.mod(trips_data[trips_data.route_short_name==route_short_name].trip_start_time/3600, 24)
+    #     end_hour = np.mod(trips_data[trips_data.route_short_name == route_short_name].trip_end_time/3600, 24)
+    #
+    #     x = r['start_loc_x']
+    #     y = r['start_loc_y']
+    #     el = r['start_el']
+    #     daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
+    #
+    #     t1 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
+    #     t2 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
+    #
+    #     t5 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
+    #     t6 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
+    #
+    #     x = r['end_loc_x']
+    #     y = r['end_loc_y']
+    #     el = r['end_el']
+    #
+    #     daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
+    #     t3 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
+    #     t4 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
+    #
+    #     t7 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
+    #     t8 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
+    #
+    #     temp_max = np.vstack([t1, t2, t3, t4]).max(axis=0)
+    #     temp_min = np.vstack([t5, t6, t7, t8]).min(axis=0)
+    #
+    #     trips_data.loc[inds, 'min_temp'] = temp_min
+    #     trips_data.loc[inds, 'max_temp'] = temp_max
 
 
 

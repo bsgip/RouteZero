@@ -14,7 +14,7 @@ import RouteZero.weather as weather
                 Functions for processing route/trip data and appending information to this
 """
 
-def process(routes, trips, stop_times, stops, patronage):
+def process(routes, trips, stop_times, stops, patronage, get_temps=True):
     """
     Processes the gtfs data frames and summarises all relevant model input information in one data frame
     :param trips: gtfs trips data frame
@@ -30,7 +30,8 @@ def process(routes, trips, stop_times, stops, patronage):
     # summarise all model input data into one data frame
     trip_summary = _summarise_trip_data(trips, stop_times, stops)
     # add temperature data to trip_summary
-    trip_summary = _trip_temperatures(trip_summary)
+    if get_temps:
+        trip_summary = _trip_temperatures(trip_summary)
 
     return trip_summary
 
@@ -41,6 +42,7 @@ def update_patronage(trip_summary, patronage):
     patronage_df = pd.DataFrame.from_dict(patronage)
     trip_summary = pd.merge(trip_summary, patronage_df[['route_short_name','passengers']], how='left')
     return trip_summary
+
 
 def _append_trip_patronage(routes, trips, patronage):
     """
@@ -86,12 +88,12 @@ def _summarise_trip_data(trips, stop_times, stops):
     trip_summary['end_loc_y'] = trip_end_stops['geometry'].values.y
     trip_summary['end_el'] = trip_end_stops['elevation']
 
-    tmp = trip_summary[trip_summary['route_id'] == '74-320-sj2-1']
-    plt.plot(tmp['trip_start_time']/3600,tmp['average_speed_mps'],'x')
-    plt.title('Average speed on route (both directions)')
-    plt.ylabel('speed (mps)')
-    plt.xlabel('hour of week')
-    plt.show()
+    # tmp = trip_summary[trip_summary['route_id'] == '74-320-sj2-1']
+    # plt.plot(tmp['trip_start_time']/3600,tmp['average_speed_mps'],'x')
+    # plt.title('Average speed on route (both directions)')
+    # plt.ylabel('speed (mps)')
+    # plt.xlabel('hour of week')
+    # plt.show()
 
     # number of stop along route, count up stops and convert to stops/km
     df_tmp = stop_times.groupby(by=['route_id', 'direction_id', 'shape_id', 'unique_id'])[
@@ -138,6 +140,8 @@ def calc_buses_in_traffic(trip_summary, deadhead=0.1, resolution=10, trip_ec=Non
     else:
         return times, buses_in_traffic
 
+def append_temperature_data(trip_summary, num_years=5, percentiles=[1, 99], disp=True):
+    return _trip_temperatures(trip_summary, num_years=num_years, percentiles=percentiles, disp=disp)
 
 def _trip_temperatures(trip_summary, num_years=5, percentiles=[1, 99], disp=True):
     """
@@ -172,7 +176,10 @@ def _trip_temperatures(trip_summary, num_years=5, percentiles=[1, 99], disp=True
         x = start_loc_x[i]
         y = start_loc_y[i]
         el = start_el[i]
-        daily_low_min, daily_low_max, daily_high_min, daily_high_max = weather.location_design_temp([y, x], el)
+        daily_low_min, daily_low_max, daily_high_min, daily_high_max = weather.location_design_temp([y, x],
+                                                                                                    el,
+                                                                                                    num_years=num_years,
+                                                                                                    percentiles=percentiles)
 
         t1 = weather.daily_temp_profile(start_hour, daily_low_max, daily_high_max)
         t2 = weather.daily_temp_profile(end_hour, daily_low_max, daily_high_max)
@@ -246,13 +253,13 @@ if __name__=="__main__":
 
     routes_all = gtfs.read_route_desc_and_names(inpath)
 
-    # route_short_names = routes_all['route_short_name'].to_list()
-    # route_desc = routes_all['route_desc'].to_list()
+    route_short_names = routes_all['route_short_name'].to_list()
+    route_desc = routes_all['route_desc'].to_list()
 
     # route_short_names = ["305", "320", '389', '406']
-    route_names_df = pd.read_csv('../data/zenobe_routes.csv')
-    route_short_names = route_names_df['route_short_name'].to_list()
-    route_desc = ['Sydney Buses Network']
+    # route_names_df = pd.read_csv('../data/zenobe_routes.csv')
+    # route_short_names = route_names_df['route_short_name'].to_list()
+    # route_desc = ['Sydney Buses Network']
 
     routes, trips, stops, stop_times, shapes = gtfs.read_busiest_week_data(inpath, route_short_names, route_desc)
 
@@ -268,7 +275,6 @@ if __name__=="__main__":
     plt.xlabel('Hour of week')
     plt.ylabel('# buses')
     plt.show()
-
-
-
-
+    #
+    trip_summary.to_csv('../data/gtfs/greater_sydney/trip_data.csv')
+    shapes.to_file('../data/gtfs/greater_sydney/shapes.shp')
