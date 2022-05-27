@@ -66,11 +66,11 @@ class base_problem():
         """
         Solve pyomo model
         """
-        opt = SolverFactory('cbc')
+        # opt = SolverFactory('cbc')
+        opt = SolverFactory('cplex')
         status = opt.solve(model)
 
-        if model.reserve_slack.value > 0:
-            print('Reserve not achieved')
+
 
         x_array = self.get_array('x')
 
@@ -119,6 +119,10 @@ class base_problem():
                    "battery_soc_delta": bv_array,
                    "battery_spec":self.battery}
 
+
+        if results['reserve_infease_%'] > 0.1:      # didnt achieve by more than 0.1%
+            print('Reserve not achieved')
+
         return results
 
     def _p2e(self, x):
@@ -151,9 +155,9 @@ class base_problem():
         return used_daily, charged_daily
 
     def base_objective(self, model):
-        return model.end_slack * 1e10 + model.reserve_slack * 1e10 \
-               + sum(model.reg[t] for t in model.Tminus) + sum(model.x[t] for t in model.T) \
-               + sum(model.bx[t]*0.1 for t in model.T)
+        return model.end_slack**2 * 1e4 + model.reserve_slack**2 * 1e4 \
+               + sum(model.x[t]**2 for t in model.T) \
+               + sum(model.bx[t]**2*0.1 for t in model.T)
 
     def add_chargers(self, model):
         number = self.chargers['number']
@@ -194,7 +198,7 @@ class base_problem():
         model.x = pyo.Var(model.T, domain=pyo.NonNegativeReals)  # depot charging power (kW)
         model.end_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reserve_slack = pyo.Var(domain=pyo.NonNegativeReals)
-        model.reg = pyo.Var(model.Tminus, domain=pyo.NonNegativeReals)
+        # model.reg = pyo.Var(model.Tminus, domain=pyo.NonNegativeReals)
         if self.grid_limit == 'optim':
             model.G = pyo.Var(domain=pyo.Reals, bounds=(1, None))  # depot connection power (kW)
         else:
@@ -232,10 +236,10 @@ class base_problem():
 
             # model.max_charge
 
-        model.reg_con = pyo.ConstraintList()
-        for t in range(self.num_times - 1):
-            model.reg_con.add(model.reg[t] >= model.x[t + 1] - model.x[t])
-            model.reg_con.add(model.reg[t] >= -(model.x[t + 1] - model.x[t]))
+        # model.reg_con = pyo.ConstraintList()
+        # for t in range(self.num_times - 1):
+        #     model.reg_con.add(model.reg[t] >= model.x[t + 1] - model.x[t])
+        #     model.reg_con.add(model.reg[t] >= -(model.x[t + 1] - model.x[t]))
 
         # maximim charge limit
         model.max_charged = pyo.ConstraintList()
@@ -331,7 +335,7 @@ class Immediate_charge_problem(base_problem):
 
 class Feasibility_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, charger_max_power, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=1000, R=100, reserve=0.2, battery=None, num_buses=None):
+                 resolution=10, min_charge_time=60, Q=100, R=10, reserve=0.2, battery=None, num_buses=None):
         """
 
         :param trips_data: the summarised trips dataframe
@@ -361,7 +365,7 @@ class Feasibility_problem(base_problem):
         """
         model = self._build_base_pyo()
 
-        model.obj = pyo.Objective(expr=model.G * self.Q + model.Nc[0] * self.chargers['cost'][0] + self.base_objective(model),
+        model.obj = pyo.Objective(expr=model.G**2 * self.Q + model.Nc[0]**2 * self.chargers['cost'][0] + self.base_objective(model),
                                   sense=pyo.minimize)
 
         return model
@@ -509,7 +513,7 @@ if __name__ == "__main__":
 
     # load saved leichhardt summary data
     # trips_data = pd.read_csv('../data/test_trip_summary.csv')
-    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
     trips_data['passengers'] = 38
     bus = ebus.BYD()
     model = LinearRegressionAbdelatyModel()
@@ -521,11 +525,11 @@ if __name__ == "__main__":
     min_charge_time = 1 * 60  # mins
     reserve = 0.2  # percent of all battery to keep in reserve [0-1]
 
-    # battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
-    battery = None
-    # problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
-    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
-    #                               battery=battery)
+    battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
+    # battery = None
+    problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
+                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+                                  battery=battery)
 
     # chargers = {'power': [50, 150], 'number': [20, 40]}
     # bus.charging_rate = 200
@@ -536,9 +540,9 @@ if __name__ == "__main__":
     #                                    deadhead=deadhead, resolution=resolution, min_charge_time=min_charge_time,
     #                                    reserve=reserve, battery=battery)
 
-    chargers = {'power': [50, 150], 'number': [20, 60]}
-    problem = Battery_spec_problem(trips_data, ec_total, bus, chargers, battery_power=5000, start_charge=0.9, final_charge=0.8,
-                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
+    # chargers = {'power': [50, 150], 'number': [20, 60]}
+    # problem = Battery_spec_problem(trips_data, ec_total, bus, chargers, battery_power=5000, start_charge=0.9, final_charge=0.8,
+    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
 
     # chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost':[10, 50, 100]}
     # bus.charging_rate=300
