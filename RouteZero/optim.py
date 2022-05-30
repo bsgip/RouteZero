@@ -15,7 +15,7 @@ from RouteZero.route import calc_buses_in_traffic
 
 class base_problem():
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
-                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None):
+                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None, windows=None):
         times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = calc_buses_in_traffic(trips_data,
                                                                                                          deadhead,
                                                                                                          resolution,
@@ -59,6 +59,7 @@ class base_problem():
         self.reserve_energy = reserve * num_buses * bus.battery_capacity
         self.bus_eta = bus.charging_efficiency
         self.battery = battery
+        self.windows = self._charge_windows(windows) if (windows is not None) else None
 
     def _solve(self, model):
         """
@@ -182,6 +183,13 @@ class base_problem():
             if number[i] != 'optim':
                 model.Nc[i].fix(int(number[i]))
 
+    def _charge_windows(self, windows):
+        tmp = np.repeat(windows, 60 / resolution)  # convert from hour windows to time slow windows
+        tmp = tmp.tolist() * 8
+        tmp = tmp[:self.num_times]
+        charge_windows = tmp
+        return charge_windows
+
     def _build_base_pyo(self):
         """
         Builds the common parts of the pyomo model
@@ -190,6 +198,10 @@ class base_problem():
         model.T = range(self.num_times)
         model.Tminus = range(self.num_times - 1)
         model.x = pyo.Var(model.T, domain=pyo.NonNegativeReals)  # depot charging power (kW)
+        if self.windows is not None:
+            for t in model.T:
+                if not self.windows[t]:
+                    model.x[t].fix(0)
         model.end_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reserve_slack = pyo.Var(domain=pyo.NonNegativeReals)
         model.reg = pyo.Var(model.Tminus, domain=pyo.NonNegativeReals)
@@ -295,7 +307,7 @@ class base_problem():
 
 class Immediate_charge_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.8,
-                 deadhead=0.1, resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None):
+                 deadhead=0.1, resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None, windows=None):
         """
         Solves the charging problem where we would always like to charge as much as possible as soon as possible
         :param trips_data: the summarised trips dataframe
@@ -311,7 +323,7 @@ class Immediate_charge_problem(base_problem):
         """
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit, deadhead=deadhead, resolution=resolution,
                          reserve=reserve,min_charge_time=min_charge_time, start_charge=start_charge,
-                         final_charge=final_charge, battery=battery, num_buses=num_buses)
+                         final_charge=final_charge, battery=battery, num_buses=num_buses, windows=windows)
 
     def _build_pyomo(self):
         """
@@ -329,7 +341,7 @@ class Immediate_charge_problem(base_problem):
 
 class Feasibility_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, charger_max_power, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=1000, R=100, reserve=0.2, battery=None, num_buses=None):
+                 resolution=10, min_charge_time=60, Q=1000, R=100, reserve=0.2, battery=None, num_buses=None, windows=None):
         """
 
         :param trips_data: the summarised trips dataframe
@@ -349,7 +361,7 @@ class Feasibility_problem(base_problem):
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit='optim', deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses)
+                         battery=battery, num_buses=num_buses, windows=windows)
         self.Q = Q
 
 
@@ -366,7 +378,7 @@ class Feasibility_problem(base_problem):
 
 class Extended_feas_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=5000, reserve=0.2, battery=None, num_buses=None):
+                 resolution=10, min_charge_time=60, Q=5000, reserve=0.2, battery=None, num_buses=None, windows=None):
         """
         Minimise the grid power limit, and the number of chargers in each set.
         :param trips_data: the summarised trips dataframe
@@ -386,7 +398,7 @@ class Extended_feas_problem(base_problem):
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit=grid_limit, deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses)
+                         battery=battery, num_buses=num_buses, windows=windows)
         self.Q = Q
 
     def _build_pyomo(self):
@@ -404,7 +416,7 @@ class Extended_feas_problem(base_problem):
 
 class Battery_spec_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, battery_power, battery_efficiency=0.95, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=1000, reserve=0.2, num_buses=None):
+                 resolution=10, min_charge_time=60, Q=1000, reserve=0.2, num_buses=None, windows=None):
         """
         Attempts to find the battery capacity that allows the grid limit to be reduced
         :param trips_data: the summarised trips dataframe
@@ -426,7 +438,7 @@ class Battery_spec_problem(base_problem):
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit='optim', deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses)
+                         battery=battery, num_buses=num_buses, windows=windows)
         self.Q = Q
 
 
@@ -445,7 +457,7 @@ class Battery_spec_problem(base_problem):
 
 class General_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, Q=0, R=0, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None):
+                 resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None, windows=None):
 
         """
             Things to optimise:
@@ -457,7 +469,7 @@ class General_problem(base_problem):
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit=grid_limit, deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses)
+                         battery=battery, num_buses=num_buses, windows=windows)
 
         if battery is not None: # cost on battery capacity
             self.bcost = battery['cost']
@@ -497,7 +509,10 @@ def plot_results(results, problem):
 
     plt.subplot(3, 1, 1)
     plt.plot(times / 60, problem.buses_at_depot, label='at depot')
-    plt.plot(times / 60, problem.Nt_avail, label='can charge')
+    if problem.windows is not None:
+        plt.plot(times / 60, problem.Nt_avail * np.array(problem.windows), label='can charge')
+    else:
+        plt.plot(times / 60, problem.Nt_avail, label='can charge')
     # plt.title('Number of buses')
     plt.legend()
     plt.xlabel('Hour of week')
@@ -568,10 +583,12 @@ if __name__ == "__main__":
     Q = 100    # cost on grid connection
     R = 0       # priority on bus charge
     grid_limit = 'optim'
+    windows = [1]*7 + [0]*3 + [1]*5 + [0]*5 + [1]*4 # allowed charging windows
+
 
     problem = General_problem(trips_data, ec_total, bus, chargers, grid_limit=grid_limit, Q=Q, R=R, start_charge=0.9, final_charge=0.8,
                                   deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
-                                  battery=battery)
+                                  battery=battery, windows=windows)
 
     # battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
     # battery = None
@@ -606,57 +623,67 @@ if __name__ == "__main__":
 
     print('Solve took {} seconds'.format(t2 - t1))
 
-    grid_limit = results['grid_limit']
-    optim_chargers = results['chargers']
-    battery_power = results['battery_action']
-    charging_power = results['charging_power']
-    total_energy_avail = results['total_energy_available']
-    battery_soc = results['battery_soc']
-    aggregate_power = results['aggregate_power']
-    battery_spec = results['battery_spec']
-    times = problem.times
 
-    plt.subplot(3, 1, 1)
-    plt.plot(times / 60, problem.buses_at_depot)
-    plt.title('Number of buses at depot')
-    plt.xlabel('Hour of week')
-    plt.ylabel('# buses')
-    plt.xlim([0, times[-1] / 60])
+    plot_results(results, problem)
+    # grid_limit = results['grid_limit']
+    # optim_chargers = results['chargers']
+    # battery_power = results['battery_action']
+    # charging_power = results['charging_power']
+    # total_energy_avail = results['total_energy_available']
+    # battery_soc = results['battery_soc']
+    # aggregate_power = results['aggregate_power']
+    # battery_spec = results['battery_spec']
+    # times = problem.times
+    #
+    # plt.subplot(3, 1, 1)
+    # plt.plot(times / 60, problem.buses_at_depot)
+    # plt.title('Number of buses at depot')
+    # plt.xlabel('Hour of week')
+    # plt.ylabel('# buses')
+    # plt.xlim([0, times[-1] / 60])
+    #
+    # plt.subplot(3, 1, 2)
+    # plt.plot(times / 60, charging_power, label='bus')
+    # plt.plot(times / 60, aggregate_power, label='aggregate')
+    # plt.plot(times / 60, battery_power, label='battery')
+    # plt.axhline(grid_limit, linestyle='--', color='r', label='max grid power')
+    # plt.title('Grid power needed for charging')
+    # plt.xlabel('Hour of week')
+    # plt.ylabel('Power (kW)')
+    # plt.xlim([0, times[-1] / 60])
+    # plt.legend()
+    #
+    # plt.subplot(3, 1, 3)
+    # plt.plot(times / 60, total_energy_avail)
+    # plt.axhline(problem.final_charge * problem.num_buses * problem.bus_capacity, linestyle='--', color='k',
+    #             label='required end energy')
+    # plt.axhline(problem.reserve_energy, linestyle='--', color='r', label='reserve')
+    # plt.xlabel('Hour of week')
+    # plt.ylabel('Energy available (kWh)')
+    # plt.title('Total battery energy available at depot')
+    # plt.xlim([0, times[-1] / 60])
+    # plt.ylim([0, problem.num_buses * problem.bus_capacity])
+    # plt.legend()
+    #
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # used_daily, charged_daily = problem.summarise_daily()
+    #
+    # fig = plt.figure()
+    # X = np.arange(1, 8)
+    # plt.bar(X + 0.00, used_daily / 1000, color='orange', width=0.3, label='Used')
+    # plt.bar(X + 0.3, charged_daily / 1000, color='g', width=0.3, label='Charged')
+    # plt.ylabel('Energy (MWh)')
+    # plt.title('Daily summary')
+    # plt.xlabel('day')
+    # plt.legend()
+    # plt.show()
 
-    plt.subplot(3, 1, 2)
-    plt.plot(times / 60, charging_power, label='bus')
-    plt.plot(times / 60, aggregate_power, label='aggregate')
-    plt.plot(times / 60, battery_power, label='battery')
-    plt.axhline(grid_limit, linestyle='--', color='r', label='max grid power')
-    plt.title('Grid power needed for charging')
-    plt.xlabel('Hour of week')
-    plt.ylabel('Power (kW)')
-    plt.xlim([0, times[-1] / 60])
-    plt.legend()
 
-    plt.subplot(3, 1, 3)
-    plt.plot(times / 60, total_energy_avail)
-    plt.axhline(problem.final_charge * problem.num_buses * problem.bus_capacity, linestyle='--', color='k',
-                label='required end energy')
-    plt.axhline(problem.reserve_energy, linestyle='--', color='r', label='reserve')
-    plt.xlabel('Hour of week')
-    plt.ylabel('Energy available (kWh)')
-    plt.title('Total battery energy available at depot')
-    plt.xlim([0, times[-1] / 60])
-    plt.ylim([0, problem.num_buses * problem.bus_capacity])
-    plt.legend()
+    # windows = [1]*7 + [0]*3 + [1]*5 + [0]*5 + [1]*4
 
-    plt.tight_layout()
-    plt.show()
-
-    used_daily, charged_daily = problem.summarise_daily()
-
-    fig = plt.figure()
-    X = np.arange(1, 8)
-    plt.bar(X + 0.00, used_daily / 1000, color='orange', width=0.3, label='Used')
-    plt.bar(X + 0.3, charged_daily / 1000, color='g', width=0.3, label='Charged')
-    plt.ylabel('Energy (MWh)')
-    plt.title('Daily summary')
-    plt.xlabel('day')
-    plt.legend()
-    plt.show()
+    # tmp = np.repeat(windows, 60/resolution)       # convert from hour windows to time slow windows
+    # tmp = tmp.tolist() * 8
+    # tmp = tmp[:len(problem.num_times)]
+    # charge_windows = tmp
