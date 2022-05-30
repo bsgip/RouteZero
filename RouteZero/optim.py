@@ -13,8 +13,6 @@ from RouteZero.route import calc_buses_in_traffic
 """
 
 
-# todo: ability to add additional buses
-
 class base_problem():
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
                  min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None):
@@ -444,6 +442,48 @@ class Battery_spec_problem(base_problem):
         return model
 
 
+
+class General_problem(base_problem):
+    def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, Q=0, R=0, start_charge=0.9, final_charge=0.8, deadhead=0.1,
+                 resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None):
+
+        """
+            Things to optimise:
+            - grid limit (minimise this)
+            - chargers (minimise number in each set)
+            - bus charge (maximise this)
+            - depot battery capacity (minimise this)
+        """
+        super().__init__(trips_data, trips_ec, bus, chargers, grid_limit=grid_limit, deadhead=deadhead,
+                         resolution=resolution, reserve=reserve,
+                         min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
+                         battery=battery, num_buses=num_buses)
+
+        if battery is not None: # cost on battery capacity
+            self.bcost = battery['cost']
+        else:
+            self.bcost = 0
+
+        self.Q = Q      # grid limit cost
+        self.R = R/(self.num_buses * bus.battery_capacity)      # bus charge priority, some scaling to get things roughly on same value
+
+
+
+
+    def _build_pyomo(self):
+        """
+            Builds the pyomo model
+        """
+        model = self._build_base_pyo()
+        model.obj = pyo.Objective(expr=model.G * self.Q
+                                       + sum(model.Nc[i] * self.chargers['cost'][i] for i in model.charger_sets)
+                                       + self.base_objective(model)
+                                       + model.bcap*self.bcost
+                                       - self.R * sum(sum(model.x[i] for i in range(t)) for t in model.T), sense=pyo.minimize)
+
+        return model
+
+
 def plot_results(results, problem):
     grid_limit = results['grid_limit']
     # optim_chargers = results['chargers']
@@ -509,7 +549,7 @@ if __name__ == "__main__":
 
     # load saved leichhardt summary data
     # trips_data = pd.read_csv('../data/test_trip_summary.csv')
-    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
     trips_data['passengers'] = 38
     bus = ebus.BYD()
     model = LinearRegressionAbdelatyModel()
@@ -521,8 +561,20 @@ if __name__ == "__main__":
     min_charge_time = 1 * 60  # mins
     reserve = 0.2  # percent of all battery to keep in reserve [0-1]
 
+    # specify the general problem
+    # chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost': [1, 5, 10]}
+    chargers = {'power': [40, 80, 150], 'number': [10, 50, "optim"], 'cost': [1, 5, 10]}
+    battery = {'power':1000, 'capacity':3000, 'efficiency':0.95, 'cost':10}
+    Q = 100    # cost on grid connection
+    R = 0       # priority on bus charge
+    grid_limit = 'optim'
+
+    problem = General_problem(trips_data, ec_total, bus, chargers, grid_limit=grid_limit, Q=Q, R=R, start_charge=0.9, final_charge=0.8,
+                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+                                  battery=battery)
+
     # battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
-    battery = None
+    # battery = None
     # problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
     #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
     #                               battery=battery)
@@ -536,9 +588,9 @@ if __name__ == "__main__":
     #                                    deadhead=deadhead, resolution=resolution, min_charge_time=min_charge_time,
     #                                    reserve=reserve, battery=battery)
 
-    chargers = {'power': [50, 150], 'number': [20, 60]}
-    problem = Battery_spec_problem(trips_data, ec_total, bus, chargers, battery_power=5000, start_charge=0.9, final_charge=0.8,
-                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
+    # chargers = {'power': [50, 150], 'number': [20, 60]}
+    # problem = Battery_spec_problem(trips_data, ec_total, bus, chargers, battery_power=5000, start_charge=0.9, final_charge=0.8,
+    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
 
     # chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost':[10, 50, 100]}
     # bus.charging_rate=300
