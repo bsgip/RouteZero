@@ -8,6 +8,8 @@ clone the repo and then
 pip install .
 ```
 
+Install the CBC optimisation solver by following the instructions at https://zoomadmin.com/HowToInstall/UbuntuPackage/coinor-cbc
+
 then checkout scripts/UI_process_notebook.ipynb
 
 this will also require you to install jupyter packages and ipywidgets
