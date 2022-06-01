@@ -61,6 +61,7 @@ class base_problem():
         self.battery = battery
         self.windows = self._charge_windows(windows) if (windows is not None) else None
 
+
     def _solve(self, model):
         """
         Solve pyomo model
@@ -496,6 +497,76 @@ class General_problem(base_problem):
         return model
 
 
+def _increment_set(set, buses_avail, number):
+    """
+    Helper function for determining charger use
+    """
+    if set.sum() < buses_avail:
+        j = np.where(set < number)[0][0]
+        set[j] += 1
+    else:
+        i = np.where(set != 0)[0][0]
+        j = i + 1 + np.where(set[i + 1:] < number[i + 1:])[0][0]
+        set[i] -= 1
+        set[j] += 1
+    return set
+
+
+
+def _determine_charger_use(chargers, buses_avail, charging_power):
+    """
+    Determines how many of each charger must be used to meet the charging power with the given
+    number of available buses
+    """
+    power = np.array(chargers['power'][::-1])       # swap so smallest charger first
+    number = np.array(chargers['number'][::-1])
+
+    sets = [0 * number]
+    total_powers = [0]
+    for i in range(len(number)):
+        set = np.zeros((len(number)))
+        set[i] = min(number[i], buses_avail)
+        j = i + 1
+        while set.sum() < buses_avail and j < len(number):
+            set[j] = min(number[j], buses_avail - set.sum())
+            j += 1
+        if set.sum() < buses_avail:
+            j = i - 1
+            while set.sum() < buses_avail and j >= 0:
+                set[j] = min(number[j], buses_avail - set.sum())
+                j -= 1
+
+        total_power = np.sum(set * power)
+
+        sets.append(set)
+        total_powers.append(total_power)
+
+    assert charging_power <= total_powers[-1], "charging infeasible"
+
+    for i in range(len(sets) - 1):
+        if charging_power < total_powers[i]:
+            i -= 1
+            break
+
+    new_set = sets[i].copy()
+    total_power = total_powers[i]
+
+    while total_power < charging_power:
+        new_set = _increment_set(new_set, buses_avail, number)
+        total_power = np.sum(power * new_set)
+
+    return new_set[::-1]    # swap back so largest charger first
+
+def determine_charger_use(chargers, buses_avail, charging_power, windows=None):
+    if windows is not None:
+        buses_avail = buses_avail * windows
+    n = len(charging_power)
+    x = []
+    for i in range(n):
+        x.append(_determine_charger_use(chargers, buses_avail[i], charging_power[i]))
+    return np.vstack(x)
+
+
 def plot_results(results, problem):
     grid_limit = results['grid_limit']
     # optim_chargers = results['chargers']
@@ -556,6 +627,17 @@ def plot_results(results, problem):
     plt.legend()
     plt.show()
 
+    chargers_in_use = determine_charger_use(chargers,problem.Nt_avail, charging_power, problem.windows)
+    r, c = chargers_in_use.shape
+    for i in range(c):
+        plt.subplot(c, 1, i+1)
+        plt.plot(times / 60, chargers_in_use[:, i])
+        plt.xlabel('Hour of week')
+        plt.ylabel('{}kW chargers'.format(chargers['power'][i]))
+
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == "__main__":
     import pandas as pd
     import RouteZero.bus as ebus
@@ -577,8 +659,8 @@ if __name__ == "__main__":
     reserve = 0.2  # percent of all battery to keep in reserve [0-1]
 
     # specify the general problem
-    # chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost': [1, 5, 10]}
-    chargers = {'power': [40, 80, 150], 'number': [10, 50, "optim"], 'cost': [1, 5, 10]}
+    chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost': [1, 5, 10]}
+    # chargers = {'power': [40, 80, 150], 'number': [10, 50, "optim"], 'cost': [1, 5, 10]}
     battery = {'power':1000, 'capacity':3000, 'efficiency':0.95, 'cost':10}
     Q = 100    # cost on grid connection
     R = 0       # priority on bus charge
@@ -625,65 +707,7 @@ if __name__ == "__main__":
 
 
     plot_results(results, problem)
-    # grid_limit = results['grid_limit']
-    # optim_chargers = results['chargers']
-    # battery_power = results['battery_action']
-    # charging_power = results['charging_power']
-    # total_energy_avail = results['total_energy_available']
-    # battery_soc = results['battery_soc']
-    # aggregate_power = results['aggregate_power']
-    # battery_spec = results['battery_spec']
-    # times = problem.times
-    #
-    # plt.subplot(3, 1, 1)
-    # plt.plot(times / 60, problem.buses_at_depot)
-    # plt.title('Number of buses at depot')
-    # plt.xlabel('Hour of week')
-    # plt.ylabel('# buses')
-    # plt.xlim([0, times[-1] / 60])
-    #
-    # plt.subplot(3, 1, 2)
-    # plt.plot(times / 60, charging_power, label='bus')
-    # plt.plot(times / 60, aggregate_power, label='aggregate')
-    # plt.plot(times / 60, battery_power, label='battery')
-    # plt.axhline(grid_limit, linestyle='--', color='r', label='max grid power')
-    # plt.title('Grid power needed for charging')
-    # plt.xlabel('Hour of week')
-    # plt.ylabel('Power (kW)')
-    # plt.xlim([0, times[-1] / 60])
-    # plt.legend()
-    #
-    # plt.subplot(3, 1, 3)
-    # plt.plot(times / 60, total_energy_avail)
-    # plt.axhline(problem.final_charge * problem.num_buses * problem.bus_capacity, linestyle='--', color='k',
-    #             label='required end energy')
-    # plt.axhline(problem.reserve_energy, linestyle='--', color='r', label='reserve')
-    # plt.xlabel('Hour of week')
-    # plt.ylabel('Energy available (kWh)')
-    # plt.title('Total battery energy available at depot')
-    # plt.xlim([0, times[-1] / 60])
-    # plt.ylim([0, problem.num_buses * problem.bus_capacity])
-    # plt.legend()
-    #
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # used_daily, charged_daily = problem.summarise_daily()
-    #
-    # fig = plt.figure()
-    # X = np.arange(1, 8)
-    # plt.bar(X + 0.00, used_daily / 1000, color='orange', width=0.3, label='Used')
-    # plt.bar(X + 0.3, charged_daily / 1000, color='g', width=0.3, label='Charged')
-    # plt.ylabel('Energy (MWh)')
-    # plt.title('Daily summary')
-    # plt.xlabel('day')
-    # plt.legend()
-    # plt.show()
 
 
-    # windows = [1]*7 + [0]*3 + [1]*5 + [0]*5 + [1]*4
 
-    # tmp = np.repeat(windows, 60/resolution)       # convert from hour windows to time slow windows
-    # tmp = tmp.tolist() * 8
-    # tmp = tmp[:len(problem.num_times)]
-    # charge_windows = tmp
+
