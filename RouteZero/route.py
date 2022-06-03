@@ -249,12 +249,15 @@ def _elevation_from_shape(shapes):
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
-    inpath = '../data/full_greater_sydney_gtfs_static.zip'
+    # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
+    name = 'vic_metro_bus_gtfs'
+    inpath = '../data/gtfs/'+name+'.zip'
 
-    routes_all = gtfs.read_route_desc_and_names(inpath)
 
-    route_short_names = routes_all['route_short_name'].to_list()
-    route_desc = routes_all['route_desc'].to_list()
+    route_short_names, route_desc = gtfs.read_route_desc_and_names(inpath)
+
+    # route_short_names = routes_all['route_short_name'].to_list()
+    # route_desc = routes_all['route_desc'].to_list()
 
     # route_short_names = ["305", "320", '389', '406']
     # route_names_df = pd.read_csv('../data/zenobe_routes.csv')
@@ -276,5 +279,5 @@ if __name__=="__main__":
     plt.ylabel('# buses')
     plt.show()
     #
-    trip_summary.to_csv('../data/gtfs/greater_sydney/trip_data.csv')
-    shapes.to_file('../data/gtfs/greater_sydney/shapes.shp')
+    trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
+    shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')

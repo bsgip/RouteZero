@@ -15,6 +15,15 @@ then checkout scripts/UI_process_notebook.ipynb
 this will also require you to install jupyter packages and ipywidgets
 
 
+## gtfs data
+Greater sydney:
+    - https://opendata.transport.nsw.gov.au/dataset/timetables-complete-gtfs
+    - last updated 2022-03-21
+
+Public transport victoria:
+    - https://discover.data.vic.gov.au/dataset/ptv-timetable-and-geographic-information-2015-gtfs
+    - last updated 06/01/2022 
+
 ## Design
 
 

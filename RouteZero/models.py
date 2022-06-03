@@ -144,7 +144,7 @@ class LinearRegressionAbdelatyModel(Model):
 
 if __name__=="__main__":
     import RouteZero.bus as ebus
-    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
     trips_data['passengers'] = 38
     bus = ebus.BYD()
     model = LinearRegressionAbdelatyModel()
