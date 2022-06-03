@@ -250,7 +250,7 @@ if __name__=="__main__":
     import matplotlib.pyplot as plt
 
     # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    name = 'vic_metro_bus_gtfs'
+    name = 'vic_telebus_gtfs'
     inpath = '../data/gtfs/'+name+'.zip'
 
 

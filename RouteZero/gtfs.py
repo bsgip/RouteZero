@@ -24,9 +24,9 @@ def read_route_desc_and_names(inpath):
     """
     routes_all = _read_all_routes(inpath)
     if 'route_desc' in routes_all:
-        return routes_all['route_short_name'], routes_all['route_desc']
+        return routes_all['route_short_name'].unique().tolist(), routes_all['route_desc'].unique().tolist()
     else:
-        return routes_all['route_short_name'], None
+        return routes_all['route_short_name'].unique().tolist(), None
 
 def read_busiest_week_data(inpath, route_short_names, route_desc, disp=True):
     """

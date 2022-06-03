@@ -76,10 +76,12 @@ def _create_gdf_of_value(trips_data, shapes, value, window=None, mode='max'):
         route_id = shape_val[shape_val.shape_id==shape_id].route_id.to_numpy()[0]
         route_short_name = shape_val[shape_val.shape_id == shape_id].route_short_name.to_numpy()[0]
 
-        gdf.at[i, 'val'] = val.values
+        # if i==1090:
+        #     print('here')
+        gdf.at[i, 'val'] = np.max(val.values)
         gdf.at[i, 'route_id'] = route_id
         gdf.at[i, 'route_short_name'] = route_short_name
-
+        # print(i)
     gdf.dropna(inplace=True)
 
     return gdf
@@ -145,9 +147,9 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel
 
-    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    trips_data = pd.read_csv('../data/gtfs/vic_metro_bus/trip_data.csv')
     trips_data['passengers'] = 38
-    shapes = gpd.read_file('../data/shapes_leichhardt.shp')
+    shapes = gpd.read_file('../data/gtfs/vic_metro_bus/shapes.shp')
     window = [5, 10]
     mode='max'
 
