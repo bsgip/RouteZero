@@ -23,7 +23,10 @@ def read_route_desc_and_names(inpath):
     :return: data frame
     """
     routes_all = _read_all_routes(inpath)
-    return routes_all[['route_short_name','route_desc']]
+    if 'route_desc' in routes_all:
+        return routes_all['route_short_name'], routes_all['route_desc']
+    else:
+        return routes_all['route_short_name'], None
 
 def read_busiest_week_data(inpath, route_short_names, route_desc, disp=True):
     """
@@ -82,7 +85,12 @@ def _read_all_routes(inpath):
     """
     with ZipFile(inpath) as z:
         routes = pd.read_csv(z.open('routes.txt'), delimiter=",")
-    routes = routes.loc[(routes.route_type >= 700) & (routes.route_type < 800)].reset_index(drop=True)
+
+    if ((routes.route_type >= 700) & (routes.route_type < 800)).sum():
+        routes = routes.loc[(routes.route_type >= 700) & (routes.route_type < 800)].reset_index(drop=True)
+    elif ((routes.route_type == 3)).sum():
+        routes = routes.loc[(routes.route_type == 3)].reset_index(drop=True)
+
     return routes
 
 
