@@ -78,8 +78,14 @@ def create_routes_map_figure(gtfs_name):
         names = np.append(names, None)
 
     # fig = px.line_mapbox(gdf, geojson=gdf.geometry, locations=gdf.shape_id)
-    fig = px.line_mapbox(lat=lats, lon=lons, hover_name=names,
-                        mapbox_style="carto-positron", zoom=11)
+    fig = px.line_mapbox(
+        lat=lats,
+        lon=lons,
+        hover_name=names,
+        mapbox_style="carto-positron",
+        zoom=11,
+        title="Energy Consumption Map"
+    )
     return fig
 
 
