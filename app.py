@@ -86,7 +86,7 @@ def create_routes_map_figure(gtfs_name):
 
 
 
-def calculate_buses_in_traffic(gtfs_name, selected_routes):
+def calculate_buses_in_traffic(selected_routes):
     appdata.subset_data(selected_routes)
     trips_data_sel = appdata.get_subset_data()
     times, buses_in_traffic = route.calc_buses_in_traffic(
@@ -207,13 +207,13 @@ def get_route_selection_form(gtfs_name):
 @app.callback(
     Output("results-bus-number", "children"),
     [Input("route-selector-confirm", "n_clicks")],
-    [State("route-selector", "value"), State("gtfs-selector", "value")],
+    [State("route-selector", "value")],
     prevent_initial_callbacks=True,
 )
-def calc_bus_number_output(n_clicks, routes, gtfs_name):
+def calc_bus_number_output(n_clicks, routes):
     if n_clicks is None or routes is None:
         return "Select Bus Routes"
-    times, buses_in_traffic = calculate_buses_in_traffic(gtfs_name, routes)
+    times, buses_in_traffic = calculate_buses_in_traffic(routes)
 
     data = {"hour of week": times, "# buses": buses_in_traffic}
     df = pd.DataFrame(data)
