@@ -196,7 +196,20 @@ def calc_bus_number_output(n_clicks, routes, gtfs_name):
         return "No results available"
     times, buses_in_traffic = calculate_buses_in_traffic(gtfs_name, routes)
 
-    fig = px.line(x=times, y=buses_in_traffic)
+    data = {"hour of week": times, "# buses": buses_in_traffic}
+    df = pd.DataFrame(data)
+
+    fig = px.line(df, x="hour of week", y="# buses", title="Buses in traffic")
+
+    fig.update_layout(
+        xaxis = dict(
+            tickformat = "digit",
+            tickmode = 'linear',
+            tick0 = 0,
+            dtick = 1000
+        )
+    )
+
     return dcc.Graph(id="bus-count-graph", figure=fig)
 
 
