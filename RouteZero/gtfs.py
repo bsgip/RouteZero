@@ -74,6 +74,14 @@ def read_busiest_week_data(inpath, route_short_names, route_desc, disp=True):
     stop_times = pd.concat(stop_times_list, axis=0, ignore_index=True).drop_duplicates()
     shapes = pd.concat(shapes_list, axis=0, ignore_index=True).drop_duplicates()
 
+    try:
+        agency = _read_agency(inpath)
+        if len(agency)==1:
+            routes['agency_name'] = agency['agency_name']
+        else:
+            routes = pd.merge(routes, agency[['agency_id', 'agency_name']], how='left')
+    except:
+        routes['agency'] = ""
 
     return routes, trips, stops, stop_times, shapes
 
@@ -81,7 +89,7 @@ def _read_all_routes(inpath):
     """
     Extracts all bus route data from gtfs feed zipfile and filters to only bus routes
     :param inpath: path to gtfs zip file
-    :return: data frame containing all route information
+    :return: data frame containing all bus route information
     """
     with ZipFile(inpath) as z:
         routes = pd.read_csv(z.open('routes.txt'), delimiter=",")
@@ -93,26 +101,22 @@ def _read_all_routes(inpath):
 
     return routes
 
+def _read_agency(inpath):
+    """
+    Extracts agency information from gtfs feed zipfile
+    :param inpath: path to gtfs zip file
+    :return: data frame containing all agency information
+    """
+    with ZipFile(inpath) as z:
+        agency = pd.read_csv(z.open('agency.txt'), delimiter=",")
+
+    return agency
 
 def _read_service_ids_by_date(inpath):
     service_ids_by_date = ptg.read_service_ids_by_date(inpath)
     return service_ids_by_date
 
-def get_route_short_names(routes):
-    """
-    gets route short names from routes df
-    :param routes: data frame of route information
-    :return: list of route short names
-    """
-    return routes['route_short_name'].to_list()
 
-def get_route_descriptions(routes):
-    """
-    gets route descriptions from routes df as a list
-    :param routes: data frame of route information
-    :return: list of route descriptions
-    """
-    return routes['route_desc'].unique().tolist()
 
 def _read_busiest_week_services(inpath):
     """
@@ -156,16 +160,14 @@ def _read_service_data(inpath, service_ids, route_short_names=None, route_desc=N
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
-    inpath = '../data/full_greater_sydney_gtfs_static.zip'
+    inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
 
     # all route short names and descriptions
-    routes_all = read_route_desc_and_names(inpath)
-    route_short_names_all = get_route_short_names(routes_all)
-    route_descriptions_all = get_route_descriptions(routes_all)
+    route_short_names, route_desc = read_route_desc_and_names(inpath)
 
     # from which the user selects the ones they are interested in
-    # route_short_names = ["305", "320", '389', '406']
-    route_short_names = ["526"]
+    route_short_names = ["305", "320", '389', '406']
+    # route_short_names = ["526"]
     route_desc = ['Sydney Buses Network']
 
     routes, trips, stops, stop_times, shapes = read_busiest_week_data(inpath, route_short_names, route_desc)

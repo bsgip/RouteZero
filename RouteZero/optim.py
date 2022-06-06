@@ -575,6 +575,7 @@ def plot_results(results, problem):
     total_energy_avail = results['total_energy_available']
     # battery_soc = results['battery_soc']
     aggregate_power = results['aggregate_power']
+    chargers = results['chargers']
     # battery_spec = results['battery_spec']
     times = problem.times
 
@@ -646,37 +647,42 @@ if __name__ == "__main__":
 
     # load saved leichhardt summary data
     # trips_data = pd.read_csv('../data/test_trip_summary.csv')
-    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
+    trips_data = pd.read_csv('../data/gtfs/vic_metro_bus/trip_data.csv')
+    trips_data.dropna(inplace=True)
+    trips_data = trips_data[0:1000]
+    # trips_data = pd.read_csv('../data/gtfs/vic_regional_bus/trip_data.csv')
+    # trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
     trips_data['passengers'] = 38
     bus = ebus.BYD()
+    bus.charging_rate = 300
     model = LinearRegressionAbdelatyModel()
     ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
 
     deadhead = 0.1  # percent [0-1]
     resolution = 10  # mins
-    charger_max_power = 150  # kW
+    charger_max_power = 300  # kW
     min_charge_time = 1 * 60  # mins
     reserve = 0.2  # percent of all battery to keep in reserve [0-1]
 
     # specify the general problem
-    chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost': [1, 5, 10]}
-    # chargers = {'power': [40, 80, 150], 'number': [10, 50, "optim"], 'cost': [1, 5, 10]}
-    battery = {'power':1000, 'capacity':3000, 'efficiency':0.95, 'cost':10}
-    Q = 100    # cost on grid connection
-    R = 0       # priority on bus charge
-    grid_limit = 'optim'
-    windows = [1]*7 + [0]*3 + [1]*5 + [0]*5 + [1]*4 # allowed charging windows
+    # chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost': [1, 5, 10]}
+    # # chargers = {'power': [40, 80, 150], 'number': [10, 50, "optim"], 'cost': [1, 5, 10]}
+    # battery = {'power':1000, 'capacity':3000, 'efficiency':0.95, 'cost':10}
+    # Q = 100    # cost on grid connection
+    # R = 0       # priority on bus charge
+    # grid_limit = 'optim'
+    # windows = [1]*7 + [0]*3 + [1]*5 + [0]*5 + [1]*4 # allowed charging windows
 
 
-    problem = General_problem(trips_data, ec_total, bus, chargers, grid_limit=grid_limit, Q=Q, R=R, start_charge=0.9, final_charge=0.8,
-                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
-                                  battery=battery, windows=windows)
+    # problem = General_problem(trips_data, ec_total, bus, chargers, grid_limit=grid_limit, Q=Q, R=R, start_charge=0.9, final_charge=0.8,
+    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+    #                               battery=battery, windows=windows)
 
     # battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
-    # battery = None
-    # problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
-    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
-    #                               battery=battery)
+    battery = None
+    problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
+                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+                                  battery=battery)
 
     # chargers = {'power': [50, 150], 'number': [20, 40]}
     # bus.charging_rate = 200

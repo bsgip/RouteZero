@@ -53,8 +53,8 @@ def _append_trip_patronage(routes, trips, patronage):
     :return: trips dataframe with passenger information appended
     """
     patronage_df = pd.DataFrame.from_dict(patronage)
-    tmp_df = pd.merge(routes[['route_short_name','route_id']],patronage_df, how='left')
-    return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers']])
+    tmp_df = pd.merge(routes[['route_short_name','route_id','agency_name']],patronage_df, how='left')
+    return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers','agency_name']])
 
 
 def _summarise_trip_data(trips, stop_times, stops):
@@ -67,13 +67,14 @@ def _summarise_trip_data(trips, stop_times, stops):
     """
     stop_times = stop_times.merge(stops[['stop_id', 'elevation','geometry']], how='left')
     stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id',
-                                             'trip_id','route_short_name']], how='left')
+                                             'trip_id','route_short_name','agency_name']], how='left')
     stop_times.sort_values(by=['unique_id', 'direction_id', 'stop_sequence'], ascending=True, inplace=True)
+    stop_times = stop_times[stop_times['shape_dist_traveled'].notna()]
     trip_start_stops = stop_times.groupby(by='unique_id').head(1).reset_index(drop=True)
     trip_end_stops = stop_times.groupby(by='unique_id').tail(1).reset_index(drop=True)
 
     trip_summary = trip_start_stops[['unique_id','route_id', 'direction_id', 'shape_id',
-                                     'trip_id','date','route_short_name']].copy(deep=True)
+                                     'trip_id','date','route_short_name','agency_name']].copy(deep=True)
     trip_summary['trip_distance'] = (trip_end_stops['shape_dist_traveled'] - trip_start_stops['shape_dist_traveled']).to_numpy()
     trip_summary['trip_start_time'] = trip_start_stops['departure_time']
     trip_summary['trip_end_time'] = trip_end_stops['arrival_time']
@@ -204,6 +205,7 @@ def _trip_temperatures(trip_summary, num_years=5, percentiles=[1, 99], disp=True
         trip_summary.loc[inds, 'min_temp'] = temp_min
         trip_summary.loc[inds, 'max_temp'] = temp_max
 
+        trip_summary.dropna(inplace=True)
     return trip_summary
 
 def _stop_elevations(stops, disp=True):
@@ -249,9 +251,9 @@ def _elevation_from_shape(shapes):
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
-    # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    name = 'vic_telebus_gtfs'
-    inpath = '../data/gtfs/'+name+'.zip'
+    inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
+    # name = 'vic_metro_bus_gtfs'
+    # inpath = '../data/gtfs/'+name+'.zip'
 
 
     route_short_names, route_desc = gtfs.read_route_desc_and_names(inpath)
@@ -279,5 +281,12 @@ if __name__=="__main__":
     plt.ylabel('# buses')
     plt.show()
     #
-    trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
-    shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
+    # trip_summary.to_csv('../data/gtfs/greater_sydney/trip_data.csv')
+    # shapes.to_file('../data/gtfs/greater_sydney/shapes.shp')
+    # trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
+    # shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
+
+    #
+    # from sklearn.metrics.pairwise import haversine_distances
+    # r = 6371000
+    # X = np.deg2rad(trip_summary[['start_loc_y','start_loc_x']].to_numpy())

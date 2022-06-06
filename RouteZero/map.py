@@ -147,9 +147,9 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel
 
-    trips_data = pd.read_csv('../data/gtfs/vic_metro_bus/trip_data.csv')
+    trips_data = pd.read_csv('../data/gtfs/vic_interstate/trip_data.csv')
     trips_data['passengers'] = 38
-    shapes = gpd.read_file('../data/gtfs/vic_metro_bus/shapes.shp')
+    shapes = gpd.read_file('../data/gtfs/vic_interstate/shapes.shp')
     window = [5, 10]
     mode='max'
 
