@@ -20,6 +20,31 @@ GTFS_FOLDER = "./data/gtfs"
 TRIP_FILENAME = "trip_data.csv"
 SHP_FILENAME = "shapes.shp"
 
+
+class AppData:
+    def __init__(self):
+        """ Nothing to do here """
+        # self.trips_data = read_gtfs_file(gtfs_name)
+        pass
+
+    def read_gtfs_file(self, gtfs_name):
+        path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
+        self.trips_data = pd.read_csv(path)
+
+    def get_routes(self):
+        return self.trips_data["route_short_name"].unique().tolist()
+
+    def subset_data(self, selected_routes):
+        trips_data_sel = self.trips_data[self.trips_data["route_short_name"].isin(selected_routes)]
+        self.trips_data_sel = trips_data_sel
+
+    def get_subset_data(self):
+        return self.trips_data_sel
+
+# initialise global object to hold app data
+appdata = AppData()
+
+
 def get_gtfs_options():
     folders = [
         folder
@@ -28,10 +53,6 @@ def get_gtfs_options():
     ]
     return [{"value": item, "label": inflection.titleize(item)} for item in folders]
 
-
-def read_gtfs_file(gtfs_name):
-    path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
-    return pd.read_csv(path)
 
 def read_shp_file(gtfs_name):
     path = os.path.join(GTFS_FOLDER, gtfs_name, SHP_FILENAME)
@@ -62,14 +83,12 @@ def create_routes_map_figure(gtfs_name):
     return fig
 
 
-def get_routes(gtfs_name):
-    trips_data = read_gtfs_file(gtfs_name)
-    return trips_data["route_short_name"].unique().tolist()
+
 
 
 def calculate_buses_in_traffic(gtfs_name, selected_routes):
-    trips_data = read_gtfs_file(gtfs_name)
-    trips_data_sel = trips_data[trips_data["route_short_name"].isin(selected_routes)]
+    appdata.subset_data(selected_routes)
+    trips_data_sel = appdata.get_subset_data()
     times, buses_in_traffic = route.calc_buses_in_traffic(
         trips_data_sel, deadhead=0.1, resolution=10
     )
@@ -137,7 +156,7 @@ def create_additional_options():
 app.layout = html.Div(
     className="grid-container",
     children=[
-        #html.Div(className="header", children="RouteZero User Interface"),
+        # html.Div(className="header", children="RouteZero User Interface"),
         html.Div(
             className="sidenav",
             children=[
@@ -168,8 +187,8 @@ app.layout = html.Div(
 def get_route_selection_form(gtfs_name):
 
     if gtfs_name is not None:
-        trips_data = read_gtfs_file(gtfs_name)
-        routes = trips_data["route_short_name"].unique().tolist()
+        appdata.read_gtfs_file(gtfs_name)
+        routes = appdata.get_routes()
         return [
             html.Div(
                 children=[
@@ -193,7 +212,7 @@ def get_route_selection_form(gtfs_name):
 )
 def calc_bus_number_output(n_clicks, routes, gtfs_name):
     if n_clicks is None or routes is None:
-        return "No results available"
+        return "Select Bus Routes"
     times, buses_in_traffic = calculate_buses_in_traffic(gtfs_name, routes)
 
     data = {"hour of week": times, "# buses": buses_in_traffic}
