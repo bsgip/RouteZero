@@ -80,6 +80,7 @@ def create_additional_options():
     return [
         dbp.FormGroup(
             id="route-additional-options",
+            label="Bus Options",
             children=[
                 dbp.FormGroup(
                     label="Max Passengers",
@@ -136,7 +137,7 @@ def create_additional_options():
 app.layout = html.Div(
     className="grid-container",
     children=[
-        html.Div(className="header", children="RouteZero User Interface"),
+        #html.Div(className="header", children="RouteZero User Interface"),
         html.Div(
             className="sidenav",
             children=[
