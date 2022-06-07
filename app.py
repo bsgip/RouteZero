@@ -4,7 +4,7 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 import plotly.express as px
-
+import random
 import dash_blueprint as dbp
 from dash import Dash, html, dcc
 from dash.dependencies import Input, Output, State
@@ -66,25 +66,32 @@ def create_routes_map_figure(gtfs_name):
     lats = []
     lons = []
     names = []
-
+    values = [] 
 
     for feature, name in zip(gdf.geometry, gdf.shape_id):
         x, y = feature.xy
         lats = np.append(lats, y)
         lons = np.append(lons, x)
         names = np.append(names, [name]*len(y))
-        lats = np.append(lats, None)
-        lons = np.append(lons, None)
-        names = np.append(names, None)
+        values = np.append(values, [random.random()]*len(y))
+        # lats = np.append(lats, None)
+        # lons = np.append(lons, None)
+        # names = np.append(names, None)
+        # values = np.append(values, None)
+
+
+    df = pd.DataFrame({"route_id": names, "value": values})
 
     # fig = px.line_mapbox(gdf, geojson=gdf.geometry, locations=gdf.shape_id)
     fig = px.line_mapbox(
+        df,
         lat=lats,
         lon=lons,
-        hover_name=names,
+        hover_data= {'route_id': True, 'value': True},
         mapbox_style="carto-positron",
         zoom=11,
-        title="Energy Consumption Map"
+        title="Energy Consumption Map",
+        color="value"
     )
     return fig
 
