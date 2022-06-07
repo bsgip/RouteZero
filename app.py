@@ -94,7 +94,7 @@ def calculate_buses_in_traffic(selected_routes):
     times, buses_in_traffic = route.calc_buses_in_traffic(
         trips_data_sel, deadhead=0.1, resolution=10
     )
-    return times, buses_in_traffic
+    return (times / 60).astype(int), buses_in_traffic
 
 
 def create_additional_options():
@@ -220,14 +220,14 @@ def calc_bus_number_output(n_clicks, routes):
     data = {"hour of week": times, "# buses": buses_in_traffic}
     df = pd.DataFrame(data)
 
-    fig = px.line(df, x="hour of week", y="# buses", title="Buses in traffic")
+    fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
 
     fig.update_layout(
         xaxis = dict(
             tickformat = "digit",
             tickmode = 'linear',
             tick0 = 0,
-            dtick = 1000
+            dtick = 6
         )
     )
 
