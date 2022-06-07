@@ -43,12 +43,17 @@ class AppData:
     def get_subset_data(self):
         return self.trips_data_sel
 
+    def add_bus_parameters(self,  max_passengers,bat_capacity,charging_power,
+                   gross_mass,charging_eff,eol_capacity):
+        self.bus = ebus.Bus(max_passengers=max_passengers, battery_capacity=bat_capacity,
+                       charging_rate=charging_power, gross_mass=gross_mass,
+                       charging_efficiency=charging_eff, end_of_life_cap=eol_capacity)
+
     def predict_energy_consumption(self):
-        bus = ebus.BYD()
         model = LinearRegressionAbdelatyModel()
         subset_trip_data = self.get_subset_data().copy()
         subset_trip_data['passengers'] = 38     # todo: allow this to be user settable
-        ec_km, ec_total = model.predict_hottest(subset_trip_data, bus)
+        ec_km, ec_total = model.predict_hottest(subset_trip_data, self.bus)
         self.ec_km = ec_km
         self.ec_total = ec_total
         return ec_km
@@ -118,7 +123,7 @@ def create_additional_options():
                     ),
                 ),
                 dbp.FormGroup(
-                    label="Charging capacity (kW)",
+                    label="Charging power (kW)",
                     inline=True,
                     children=dbp.NumericInput(
                         id="charging-capacity-kw", value=150, stepSize=1
@@ -250,10 +255,17 @@ def show_additional_options_form(n_clicks, routes, gtfs_file):
 @app.callback(
     Output("results-route-map", "children"),
     [Input("confirm-additional-options", "n_clicks")],
-    [State("gtfs-selector", "value")],
+    [State("gtfs-selector", "value"), State("max-passenger-count","value"),
+     State("battery-capacity-kwh","value"), State("charging-capacity-kw", "value"),
+     State("gross-mass-kg","value"), State("charging-efficiency","value"),
+     State("eol-capacity","value")],
     # prevent_initial_callbacks=True
 )
-def show_route_map(n_clicks, gtfs_file):
+def show_route_map(n_clicks, gtfs_file, max_passengers,bat_capacity,charging_power,
+                   gross_mass,charging_eff,eol_capacity):
+    appdata.add_bus_parameters(max_passengers,bat_capacity,charging_power,
+                   gross_mass,charging_eff,eol_capacity)
+
     if n_clicks:
         map_title = "Route Energy Consumption"
         create_routes_map_figure(gtfs_file, map_title)
