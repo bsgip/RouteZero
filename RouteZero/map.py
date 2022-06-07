@@ -18,21 +18,21 @@ def _folium_open(f_map, path):
     new = 2
     webbrowser.open(html_page, new=new)
 
-def route_energy_map(trip_data, energy_consumption, shapes, window=None, mode='max'):
-
-    tmp = trip_data.copy()
-    tmp['EC'] = energy_consumption
-
-    # if window is not None:
-    #     tmp = tmp[tmp['trip_start_time'] > ]
-
-    ## Prepare data for plotting on a map
-    shape_ids = trip_data.shape_id
-
-    gdf = gpd.GeoDataFrame(shapes)
-    gdf['route_id'] = "nan"
-    gdf['max_EC_total'] = np.nan
-    gdf['max_EC_km'] = np.nan
+# def route_energy_map(trip_data, energy_consumption, shapes, window=None, mode='max'):
+#
+#     tmp = trip_data.copy()
+#     tmp['EC'] = energy_consumption
+#
+#     # if window is not None:
+#     #     tmp = tmp[tmp['trip_start_time'] > ]
+#
+#     ## Prepare data for plotting on a map
+#     shape_ids = trip_data.shape_id
+#
+#     gdf = gpd.GeoDataFrame(shapes)
+#     gdf['route_id'] = "nan"
+#     gdf['max_EC_total'] = np.nan
+#     gdf['max_EC_km'] = np.nan
 
 def _create_gdf_of_value(trips_data, shapes, value, window=None, mode='max'):
     """
@@ -94,7 +94,7 @@ def _create_gdf_map(gdf, map_title, colorbar_str):
 
     ## create a map of total energy consumption
     m = folium.Map(location=[centroid_lat, centroid_lon],
-                   tiles='cartodbpositron', zoom_start=12)
+                   tiles='cartodbpositron', zoom_start=10)
     gdf.crs = {'init': 'epsg:4326'}
 
     colorscale = branca.colormap.linear.YlGnBu_09.scale(gdf['val'].min(), gdf['val'].max())

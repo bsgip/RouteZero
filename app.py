@@ -10,6 +10,8 @@ from dash import Dash, html, dcc
 from dash.dependencies import Input, Output, State
 
 from RouteZero import route
+import RouteZero.bus as ebus
+from RouteZero.models import LinearRegressionAbdelatyModel
 
 app = Dash(__name__, suppress_callback_exceptions=True)
 
@@ -41,6 +43,16 @@ class AppData:
     def get_subset_data(self):
         return self.trips_data_sel
 
+    def predict_energy_consumption(self):
+        bus = ebus.BYD()
+        model = LinearRegressionAbdelatyModel()
+        subset_trip_data = self.get_subset_data().copy()
+        subset_trip_data['passengers'] = 38     # todo: allow this to be user settable
+        ec_km, ec_total = model.predict_hottest(subset_trip_data, bus)
+        self.ec_km = ec_km
+        self.ec_total = ec_total
+        return ec_km
+
 # initialise global object to hold app data
 appdata = AppData()
 
@@ -59,43 +71,20 @@ def read_shp_file(gtfs_name):
     return gpd.read_file(path)
 
 
-def create_routes_map_figure(gtfs_name):
+def create_routes_map_figure(gtfs_name, map_title):
     gdf = read_shp_file(gtfs_name)
 
+    from RouteZero.map import create_map
+    ec_km = appdata.predict_energy_consumption()
 
-    lats = []
-    lons = []
-    names = []
-    values = [] 
+    colorbar_str = 'energy per km'
+    m = create_map(trips_data=appdata.get_subset_data(), shapes=gdf,value=ec_km, map_title=map_title, colorbar_str=colorbar_str)
+    # save html
+    path = map_title + '.html'
+    html_page = f'{path}'
+    m.save(html_page)
 
-    for feature, name in zip(gdf.geometry, gdf.shape_id):
-        x, y = feature.xy
-        lats = np.append(lats, y)
-        lons = np.append(lons, x)
-        names = np.append(names, [name]*len(y))
-        values = np.append(values, [random.random()]*len(y))
-        # lats = np.append(lats, None)
-        # lons = np.append(lons, None)
-        # names = np.append(names, None)
-        # values = np.append(values, None)
-
-
-    df = pd.DataFrame({"route_id": names, "value": values})
-
-    # fig = px.line_mapbox(gdf, geojson=gdf.geometry, locations=gdf.shape_id)
-    fig = px.line_mapbox(
-        df,
-        lat=lats,
-        lon=lons,
-        hover_data= {'route_id': True, 'value': True},
-        mapbox_style="carto-positron",
-        zoom=11,
-        title="Energy Consumption Map",
-        color="value"
-    )
-    return fig
-
-
+    return m
 
 
 
@@ -261,14 +250,17 @@ def show_additional_options_form(n_clicks, routes, gtfs_file):
 @app.callback(
     Output("results-route-map", "children"),
     [Input("confirm-additional-options", "n_clicks")],
-    [State("route-selector", "value"), State("gtfs-selector", "value")],
+    [State("gtfs-selector", "value")],
     # prevent_initial_callbacks=True
 )
-def show_route_map(n_clicks, routes, gtfs_file):
+def show_route_map(n_clicks, gtfs_file):
     if n_clicks:
+        map_title = "Route Energy Consumption"
+        create_routes_map_figure(gtfs_file, map_title)
         return html.Div(
-            children=dcc.Graph(figure=create_routes_map_figure(gtfs_file))
+            children=html.Iframe(id='map', srcDoc=open(map_title+'.html').read(),width="80%",height=500)
         )
+
 
 
 if __name__ == "__main__":
