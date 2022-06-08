@@ -36,6 +36,16 @@ class AppData:
     def set_deadhead(self, deadhead_percent):
         self.deadhead = deadhead_percent/100
 
+    def set_charger_power(self, charger_power):
+        chargers = {"power":charger_power, "number":"optim"}
+        self.chargers = chargers
+
+    def add_battery_parameters(self, depot_bat_cap, depot_bat_power, depot_bat_eff):
+        battery = {"power":depot_bat_power,
+                   "capacity":depot_bat_cap,
+                   "efficiency":depot_bat_eff}
+        self.battery=battery
+
     def set_passenger_loading(self, passengers):
         trips_data_sel = self.trips_data_sel.copy()
         trips_data_sel['passengers'] = passengers
@@ -136,6 +146,49 @@ def create_route_options():
         )
     ]
 
+def create_depot_options():
+    return [
+        dbp.FormGroup(
+            id='depot-options',
+            label='depot options:',
+            children=[
+                dbp.FormGroup(
+                    label='Max charger power (kW)',
+                    inline=True,
+                    children=dbp.NumericInput(
+                        id="charger-power", value=150, stepSize=1
+                    )
+                ),
+                dbp.FormGroup(
+                    label='Battery capacity (kWh)',
+                    inline=True,
+                    children=dbp.NumericInput(
+                        id="depot-battery-capacity", value=0, stepSize=1
+                    )
+                ),
+                dbp.FormGroup(
+                    label='Battery power (kW)',
+                    inline=True,
+                    children=dbp.NumericInput(
+                        id="depot-battery-power", value=0, stepSize=1
+                    )
+                ),
+                dbp.FormGroup(
+                    label='Battery efficiency',
+                    inline=True,
+                    children=dbp.Slider(
+                        id="depot-battery-eff",
+                        value=0.95,
+                        min=0.0,
+                        max=1.,
+                        stepSize=0.01
+                    )
+                ),
+                dbp.Button(id="confirm-depot-options", children="Next"),
+            ]
+        )
+    ]
+
 def create_bus_options():
     return [
         dbp.FormGroup(
@@ -213,7 +266,8 @@ app.layout = html.Div(
             className="main",
             children=[
                 html.Div(id="results-bus-number", children=None),
-                html.Div(id="results-route-map", children=None)
+                html.Div(id="results-route-map", children=None),
+                html.Div(id="results-init-feas", children=None)
             ],
         ),
     ],
@@ -243,6 +297,7 @@ def get_route_selection_form(gtfs_name):
             ),
             html.Div(id="route-options-form"),
             html.Div(id="bus-information-form"),
+            html.Div(id="depot-options-form")
         ]
 
 @app.callback(
@@ -321,6 +376,29 @@ def show_route_map(n_clicks, gtfs_file, max_passengers,bat_capacity,charging_pow
         return html.Div(
             children=html.Iframe(id='map', srcDoc=open(map_title+'.html').read(),width="80%",height=500)
         )
+
+@app.callback(
+    Output("depot-options-form", "children"),
+    [Input("confirm-bus-options", "n_clicks")],
+    # prevent_initial_callbacks=True
+)
+def show_depot_options_form(n_clicks):
+    if n_clicks:
+        return html.Div(
+            id="depot-information-form", children=create_depot_options()
+        )
+
+@app.callback(
+    Output("results-init-feas", "children"),
+    [Input("confirm-depot-options", "n_clicks")],
+    [State("charger-power","value"), State("depot-battery-capacity","value"),
+     State("depot-battery-power", "value"), State("depot-battery-eff","value")]
+)
+def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_power,
+                            depot_bat_eff):
+    if n_clicks:
+        appdata.add_battery_parameters(depot_bat_cap, depot_bat_power, depot_bat_eff)
+        appdata.set_charger_power(charger_power)
 
 
 
