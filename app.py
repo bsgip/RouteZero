@@ -136,10 +136,10 @@ def create_route_options():
         )
     ]
 
-def create_additional_options():
+def create_bus_options():
     return [
         dbp.FormGroup(
-            id="route-additional-options",
+            id="bus-options",
             label="Bus Options",
             children=[
                 dbp.FormGroup(
@@ -160,7 +160,7 @@ def create_additional_options():
                     label="Charging power (kW)",
                     inline=True,
                     children=dbp.NumericInput(
-                        id="charging-capacity-kw", value=150, stepSize=1
+                        id="charging-capacity-kw", value=300, stepSize=1
                     ),
                 ),
                 dbp.FormGroup(
@@ -188,7 +188,7 @@ def create_additional_options():
                         id="eol-capacity", value=0.8, min=0.0, max=1.0, stepSize=0.01
                     ),
                 ),
-                dbp.Button(id="confirm-additional-options", children="Next"),
+                dbp.Button(id="confirm-bus-options", children="Next"),
             ],
         )
     ]
@@ -242,7 +242,7 @@ def get_route_selection_form(gtfs_name):
                 ]
             ),
             html.Div(id="route-options-form"),
-            html.Div(id="additional-information-form"),
+            html.Div(id="bus-information-form"),
         ]
 
 @app.callback(
@@ -279,10 +279,10 @@ def calc_bus_number_output(n_clicks, routes, deadhead_percent, peak_passengers):
 
     fig.update_layout(
         xaxis = dict(
-            tickformat = "digit",
-            tickmode = 'linear',
-            tick0 = 0,
-            dtick = 6
+            tickformat="digit",
+            tickmode='linear',
+            tick0=0,
+            dtick=6
         )
     )
 
@@ -290,20 +290,20 @@ def calc_bus_number_output(n_clicks, routes, deadhead_percent, peak_passengers):
 
 
 @app.callback(
-    Output("additional-information-form", "children"),
+    Output("bus-information-form", "children"),
     [Input("confirm-route-options", "n_clicks")],
     # prevent_initial_callbacks=True
 )
-def show_additional_options_form(n_clicks):
+def show_bus_options_form(n_clicks):
     if n_clicks:
         return html.Div(
-            id="additional-information-form", children=create_additional_options()
+            id="bus-information-form", children=create_bus_options()
         )
 
 
 @app.callback(
     Output("results-route-map", "children"),
-    [Input("confirm-additional-options", "n_clicks")],
+    [Input("confirm-bus-options", "n_clicks")],
     [State("gtfs-selector", "value"), State("max-passenger-count","value"),
      State("battery-capacity-kwh","value"), State("charging-capacity-kw", "value"),
      State("gross-mass-kg","value"), State("charging-efficiency","value"),
