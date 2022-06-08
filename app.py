@@ -12,6 +12,7 @@ from dash.dependencies import Input, Output, State
 from RouteZero import route
 import RouteZero.bus as ebus
 from RouteZero.models import LinearRegressionAbdelatyModel
+from RouteZero.optim import Extended_feas_problem
 
 app = Dash(__name__, suppress_callback_exceptions=True)
 
@@ -22,6 +23,7 @@ GTFS_FOLDER = "./data/gtfs"
 TRIP_FILENAME = "trip_data.csv"
 SHP_FILENAME = "shapes.shp"
 
+RESOLUTION = 10
 
 class AppData:
     def __init__(self):
@@ -37,7 +39,7 @@ class AppData:
         self.deadhead = deadhead_percent/100
 
     def set_charger_power(self, charger_power):
-        chargers = {"power":charger_power, "number":"optim"}
+        chargers = {"power":charger_power, "number":"optim", "cost":10}
         self.chargers = chargers
 
     def add_battery_parameters(self, depot_bat_cap, depot_bat_power, depot_bat_eff):
@@ -75,8 +77,55 @@ class AppData:
         self.ec_total = ec_total
         return ec_km
 
+    def store_init_feas_results(self, results):
+        self.init_feas_results = results
+
 # initialise global object to hold app data
 appdata = AppData()
+
+
+def run_init_feasibility():
+    battery = appdata.battery
+    chargers = appdata.chargers
+    grid_limit="optim"
+    bus = appdata.bus
+    trips_data = appdata.get_subset_data()
+    ec_total = appdata.ec_total
+    deadhead = appdata.deadhead
+    min_charge_time = 60        # todo: user should be able to set this
+    start_charge = 0.9            # todo: user should be able to set this
+    final_charge = 0.8            # todo: user should be able to set this
+    reserve = 0.2                     # todo: user should be able to set this
+    problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=start_charge, final_charge=final_charge,
+                                  deadhead=deadhead,resolution=RESOLUTION, min_charge_time=min_charge_time, reserve=reserve,
+                                  battery=battery)
+    results = problem.solve()
+    appdata.store_init_feas_results(results)
+
+
+def create_optim_results_plot(results):
+
+    times = results["times"]/60
+    grid_limit = results["grid_limit"]
+    battery_power = results['battery_action']
+    charging_power = results["charging_power"]
+    aggregate_power = results["aggregate_power"]
+
+    data = {"hour of week": times, "charging power": charging_power}
+    df = pd.DataFrame(data)
+
+    fig = px.line(df, x="hour of week", y="charging power",title="Nice title")
+
+    fig.update_layout(
+        xaxis = dict(
+            tickformat="digit",
+            tickmode='linear',
+            tick0=0,
+            dtick=6
+        )
+    )
+
+    return dcc.Graph(id="charging-graph", figure=fig)
 
 
 def get_gtfs_options():
@@ -113,7 +162,7 @@ def create_routes_map_figure(gtfs_name, map_title):
 def calculate_buses_in_traffic():
     trips_data_sel = appdata.get_subset_data()
     times, buses_in_traffic = route.calc_buses_in_traffic(
-        trips_data_sel, deadhead=appdata.deadhead, resolution=10
+        trips_data_sel, deadhead=appdata.deadhead, resolution=RESOLUTION
     )
     return (times / 60).astype(int), buses_in_traffic
 
@@ -399,6 +448,9 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
     if n_clicks:
         appdata.add_battery_parameters(depot_bat_cap, depot_bat_power, depot_bat_eff)
         appdata.set_charger_power(charger_power)
+        run_init_feasibility()
+        results = appdata.init_feas_results
+        return create_optim_results_plot(results)
 
 
 

@@ -117,7 +117,8 @@ class base_problem():
                    "aggregate_power": agg_power,
                    "battery_soc": battery_soc,
                    "battery_soc_delta": bv_array,
-                   "battery_spec":self.battery}
+                   "battery_spec":self.battery,
+                   "times":self.times}
 
         return results
 
