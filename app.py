@@ -33,6 +33,14 @@ class AppData:
         path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
         self.trips_data = pd.read_csv(path)
 
+    def set_deadhead(self, deadhead_percent):
+        self.deadhead = deadhead_percent/100
+
+    def set_passenger_loading(self, passengers):
+        trips_data_sel = self.trips_data_sel.copy()
+        trips_data_sel['passengers'] = passengers
+        self.trips_data_sel = trips_data_sel
+
     def get_routes(self):
         return self.trips_data["route_short_name"].unique().tolist()
 
@@ -51,8 +59,7 @@ class AppData:
 
     def predict_energy_consumption(self):
         model = LinearRegressionAbdelatyModel()
-        subset_trip_data = self.get_subset_data().copy()
-        subset_trip_data['passengers'] = 38     # todo: allow this to be user settable
+        subset_trip_data = self.get_subset_data()
         ec_km, ec_total = model.predict_hottest(subset_trip_data, self.bus)
         self.ec_km = ec_km
         self.ec_total = ec_total
@@ -93,14 +100,41 @@ def create_routes_map_figure(gtfs_name, map_title):
 
 
 
-def calculate_buses_in_traffic(selected_routes):
-    appdata.subset_data(selected_routes)
+def calculate_buses_in_traffic():
     trips_data_sel = appdata.get_subset_data()
     times, buses_in_traffic = route.calc_buses_in_traffic(
-        trips_data_sel, deadhead=0.1, resolution=10
+        trips_data_sel, deadhead=appdata.deadhead, resolution=10
     )
     return (times / 60).astype(int), buses_in_traffic
 
+def create_route_options():
+    return [
+        dbp.FormGroup(
+            id='route-options',
+            label='Route options',
+            children=[
+                dbp.FormGroup(
+                    label='deadhead (%)',
+                    inline=True,
+                    children=dbp.Slider(
+                        id="deadhead",
+                        value=10.,
+                        min=0.0,
+                        max=100,
+                        stepSize=1.
+                    )
+                ),
+                dbp.FormGroup(
+                    label='Peak passengers',
+                    inline=True,
+                    children=dbp.NumericInput(
+                        id="peak-passengers", value=38, stepSize=1
+                    )
+                ),
+                dbp.Button(id="confirm-route-options", children="Next"),
+            ]
+        )
+    ]
 
 def create_additional_options():
     return [
@@ -207,20 +241,36 @@ def get_route_selection_form(gtfs_name):
                     dbp.Button(id="route-selector-confirm", children="Next"),
                 ]
             ),
+            html.Div(id="route-options-form"),
             html.Div(id="additional-information-form"),
         ]
 
+@app.callback(
+    Output("route-options-form", "children"),
+    [Input("route-selector-confirm", "n_clicks")],
+    # [State("route-selector", "value")],
+    # prevent_initial_callbacks=True,
+)
+def get_route_options_form(n_clicks):
+    if n_clicks:
+        return html.Div(
+            id="route-options-form",children=create_route_options()
+        )
 
 @app.callback(
     Output("results-bus-number", "children"),
-    [Input("route-selector-confirm", "n_clicks")],
-    [State("route-selector", "value")],
+    [Input("confirm-route-options", "n_clicks")],
+    [State("route-selector", "value"), State("deadhead","value"),
+     State("peak-passengers", "value")],
     prevent_initial_callbacks=True,
 )
-def calc_bus_number_output(n_clicks, routes):
+def calc_bus_number_output(n_clicks, routes, deadhead_percent, peak_passengers):
     if n_clicks is None or routes is None:
         return "Select Bus Routes"
-    times, buses_in_traffic = calculate_buses_in_traffic(routes)
+    appdata.set_deadhead(deadhead_percent)
+    appdata.subset_data(routes)
+    appdata.set_passenger_loading(peak_passengers)
+    times, buses_in_traffic = calculate_buses_in_traffic()
 
     data = {"hour of week": times, "# buses": buses_in_traffic}
     df = pd.DataFrame(data)
@@ -241,11 +291,10 @@ def calc_bus_number_output(n_clicks, routes):
 
 @app.callback(
     Output("additional-information-form", "children"),
-    [Input("route-selector-confirm", "n_clicks")],
-    [State("route-selector", "value"), State("gtfs-selector", "value")],
+    [Input("confirm-route-options", "n_clicks")],
     # prevent_initial_callbacks=True
 )
-def show_additional_options_form(n_clicks, routes, gtfs_file):
+def show_additional_options_form(n_clicks):
     if n_clicks:
         return html.Div(
             id="additional-information-form", children=create_additional_options()
