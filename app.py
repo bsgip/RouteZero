@@ -38,6 +38,12 @@ class AppData:
     def set_deadhead(self, deadhead_percent):
         self.deadhead = deadhead_percent/100
 
+    def set_optim_options(self, min_charge_time, start_charge, final_charge, reserve_capacity):
+        self.min_charge_time = min_charge_time
+        self.start_charge = start_charge/100
+        self.final_charge = final_charge/100
+        self.reserve_capacity =  reserve_capacity/100
+
     def set_charger_power(self, charger_power):
         chargers = {"power":charger_power, "number":"optim", "cost":10}
         self.chargers = chargers
@@ -92,10 +98,10 @@ def run_init_feasibility():
     trips_data = appdata.get_subset_data()
     ec_total = appdata.ec_total
     deadhead = appdata.deadhead
-    min_charge_time = 60        # todo: user should be able to set this
-    start_charge = 0.9            # todo: user should be able to set this
-    final_charge = 0.8            # todo: user should be able to set this
-    reserve = 0.2                     # todo: user should be able to set this
+    min_charge_time = appdata.min_charge_time
+    start_charge = appdata.start_charge
+    final_charge = appdata.final_charge
+    reserve = appdata.reserve_capacity
     problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=start_charge, final_charge=final_charge,
                                   deadhead=deadhead,resolution=RESOLUTION, min_charge_time=min_charge_time, reserve=reserve,
                                   battery=battery)
@@ -195,6 +201,53 @@ def create_route_options():
         )
     ]
 
+
+def create_feas_optim_options():
+    return [
+        html.H4("Optimisation options:"),
+        dbp.FormGroup(
+            label='Min plugin time (mins)',
+            inline=True,
+            children=dbp.NumericInput(
+                id='min-charge-time', value=60, stepSize=1
+            )
+        ),
+        dbp.FormGroup(
+            label='start charge (%)',
+            inline=True,
+            children=dbp.Slider(
+                id="start-charge",
+                value=90,
+                min=0.0,
+                max=100.,
+                stepSize=1.
+            )
+        ),
+        dbp.FormGroup(
+            label='Final charge (%)',
+            inline=True,
+            children=dbp.Slider(
+                id="final-charge",
+                value=80,
+                min=0.0,
+                max=100.,
+                stepSize=1.
+            )
+        ),
+        dbp.FormGroup(
+            label='Bus reserve capacity (%)',
+            inline=True,
+            children=dbp.Slider(
+                id="reserve-capacity",
+                value=20,
+                min=0.0,
+                max=100.,
+                stepSize=1.
+            )
+        ),
+        dbp.Button(id="confirm-depot-options", children="Next"),
+    ]
+
 def create_depot_options():
     return [
         dbp.FormGroup(
@@ -233,7 +286,6 @@ def create_depot_options():
                         stepSize=0.01
                     )
                 ),
-                dbp.Button(id="confirm-depot-options", children="Next"),
             ]
         )
     ]
@@ -346,7 +398,8 @@ def get_route_selection_form(gtfs_name):
             ),
             html.Div(id="route-options-form"),
             html.Div(id="bus-information-form"),
-            html.Div(id="depot-options-form")
+            html.Div(id="depot-options-form"),
+            html.Div(id="feas-optim-options-form")
         ]
 
 @app.callback(
@@ -438,16 +491,29 @@ def show_depot_options_form(n_clicks):
         )
 
 @app.callback(
+    Output("feas-optim-options-form", "children"),
+    [Input("confirm-bus-options", "n_clicks")],
+)
+def show_init_feas_options_form(n_clicks):
+    if n_clicks:
+        return create_feas_optim_options()
+
+@app.callback(
     Output("results-init-feas", "children"),
     [Input("confirm-depot-options", "n_clicks")],
     [State("charger-power","value"), State("depot-battery-capacity","value"),
-     State("depot-battery-power", "value"), State("depot-battery-eff","value")]
+     State("depot-battery-power", "value"), State("depot-battery-eff","value"),
+     State("min-charge-time","value"), State("start-charge","value"),
+     State("final-charge","value"),State("reserve-capacity","value")],
+    prevent_initial_callbacks=True
 )
 def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_power,
-                            depot_bat_eff):
+                            depot_bat_eff, min_charge_time, start_charge, final_charge,
+                            reserve_capacity):
     if n_clicks:
         appdata.add_battery_parameters(depot_bat_cap, depot_bat_power, depot_bat_eff)
         appdata.set_charger_power(charger_power)
+        appdata.set_optim_options(min_charge_time, start_charge, final_charge, reserve_capacity)
         run_init_feasibility()
         results = appdata.init_feas_results
         return create_optim_results_plot(results)
