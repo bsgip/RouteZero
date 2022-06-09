@@ -191,7 +191,8 @@ def create_route_options():
                 value=DEFAULT_DEADHEAD,
                 min=0.0,
                 max=100,
-                stepSize=1.
+                stepSize=1.,
+                labelStepSize=50,
             )
         ),
         dbp.FormGroup(
@@ -222,7 +223,8 @@ def create_feas_optim_options():
                 value=DEFAULT_START_CHARGE,
                 min=0.0,
                 max=100.,
-                stepSize=1.
+                stepSize=1.,
+                labelStepSize=50,
             )
         ),
         dbp.FormGroup(
@@ -233,7 +235,8 @@ def create_feas_optim_options():
                 value=DEFAULT_FINAL_CHARGE,
                 min=0.0,
                 max=100.,
-                stepSize=1.
+                stepSize=1.,
+                labelStepSize=50,
             )
         ),
         dbp.FormGroup(
@@ -244,7 +247,8 @@ def create_feas_optim_options():
                 value=DEFAULT_RESERVE_CAPACITY,
                 min=0.0,
                 max=100.,
-                stepSize=1.
+                stepSize=1.,
+                labelStepSize=50,
             )
         ),
         dbp.Button(id="confirm-optim-options", children="Next", n_clicks=0),
@@ -333,7 +337,7 @@ def create_bus_options():
             label="End of life capacity (%)",
             inline=True,
             children=dbp.Slider(
-                id="eol-capacity", value=80, min=0.0, max=100, stepSize=1.
+                id="eol-capacity", value=80, min=0.0, max=100, stepSize=1.,labelStepSize=50,
             ),
         ),
         dbp.Button(id="confirm-bus-options", children="Next"),
@@ -358,7 +362,7 @@ app.layout = html.Div(
                 html.Div(id="bus-information-form"),
                 html.Div(id="depot-options-form"),
                 html.Div(id="feas-optim-options-form")
-            ],
+            ], style={'padding': 10, 'flex': 1}
         ),
         html.Div(
             className="main",
