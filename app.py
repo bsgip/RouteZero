@@ -4,7 +4,8 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 import plotly.express as px
-import random
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 import dash_blueprint as dbp
 from dash import Dash, html, dcc
 from dash.dependencies import Input, Output, State
@@ -28,7 +29,7 @@ DEFAULT_DEADHEAD = 10.
 DEFAULT_PEAK_PASSENGER = 38
 DEFAULT_MIN_CHARGE_TIME = 60
 DEFAULT_START_CHARGE = 90
-DEFAULT_FINAL_CHARGE = 80
+DEFAULT_FINAL_CHARGE = 90
 DEFAULT_RESERVE_CAPACITY = 20
 DEFAULT_CHARGER_POWER = 150
 DEFAULT_DEPOT_BATTERY_EFF = 0.95
@@ -125,10 +126,14 @@ def create_optim_results_plot(results):
     charging_power = results["charging_power"]
     aggregate_power = results["aggregate_power"]
 
-    data = {"hour of week": times, "charging power": charging_power}
+    data = {"hour of week": times, "total charging power": charging_power,"depot battery power":battery_power, "aggregate power":aggregate_power}
     df = pd.DataFrame(data)
 
-    fig = px.line(df, x="hour of week", y="charging power",title="Nice title")
+    fig = px.line(df, x="hour of week", y=df.columns[1:-1],title="Nice title")
+    fig.add_trace(go.Scatter(x=df["hour of week"], y=df["aggregate power"], name='aggregate power',
+                         line = dict(dash='dash')))
+    fig.add_hline(y=grid_limit, line_dash="dash",annotation_text="Required grid limit",
+                  annotation_position="top right")
 
     fig.update_layout(
         xaxis = dict(
@@ -136,11 +141,12 @@ def create_optim_results_plot(results):
             tickmode='linear',
             tick0=0,
             dtick=6
-        )
+        ),
+        legend_title=None,
+        yaxis_title='Power (kW)'
     )
 
     return dcc.Graph(id="charging-graph", figure=fig)
-
 
 def get_gtfs_options():
     folders = [
@@ -150,11 +156,9 @@ def get_gtfs_options():
     ]
     return [{"value": item, "label": inflection.titleize(item)} for item in folders]
 
-
 def read_shp_file(gtfs_name):
     path = os.path.join(GTFS_FOLDER, gtfs_name, SHP_FILENAME)
     return gpd.read_file(path)
-
 
 def create_routes_map_figure(gtfs_name, map_title):
     gdf = read_shp_file(gtfs_name)
@@ -170,8 +174,6 @@ def create_routes_map_figure(gtfs_name, map_title):
     m.save(html_page)
 
     return m
-
-
 
 def calculate_buses_in_traffic():
     trips_data_sel = appdata.get_subset_data()
