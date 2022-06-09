@@ -24,6 +24,14 @@ TRIP_FILENAME = "trip_data.csv"
 SHP_FILENAME = "shapes.shp"
 
 RESOLUTION = 10
+DEFAULT_DEADHEAD = 10.
+DEFAULT_PEAK_PASSENGER = 38
+DEFAULT_MIN_CHARGE_TIME = 60
+DEFAULT_START_CHARGE = 90
+DEFAULT_FINAL_CHARGE = 80
+DEFAULT_RESERVE_CAPACITY = 20
+DEFAULT_CHARGER_POWER = 150
+DEFAULT_DEPOT_BATTERY_EFF = 0.95
 
 class AppData:
     def __init__(self):
@@ -180,7 +188,7 @@ def create_route_options():
             inline=True,
             children=dbp.Slider(
                 id="deadhead",
-                value=10.,
+                value=DEFAULT_DEADHEAD,
                 min=0.0,
                 max=100,
                 stepSize=1.
@@ -190,12 +198,11 @@ def create_route_options():
             label='Peak passengers',
             inline=True,
             children=dbp.NumericInput(
-                id="peak-passengers", value=38, stepSize=1
+                id="peak-passengers", value=DEFAULT_PEAK_PASSENGER, stepSize=1
             )
         ),
         dbp.Button(id="confirm-route-options", children="Next"),
     ]
-
 
 def create_feas_optim_options():
     return [
@@ -204,7 +211,7 @@ def create_feas_optim_options():
             label='Min plugin time (mins)',
             inline=True,
             children=dbp.NumericInput(
-                id='min-charge-time', value=60, stepSize=1
+                id='min-charge-time', value=DEFAULT_MIN_CHARGE_TIME, stepSize=1
             )
         ),
         dbp.FormGroup(
@@ -212,7 +219,7 @@ def create_feas_optim_options():
             inline=True,
             children=dbp.Slider(
                 id="start-charge",
-                value=90,
+                value=DEFAULT_START_CHARGE,
                 min=0.0,
                 max=100.,
                 stepSize=1.
@@ -223,7 +230,7 @@ def create_feas_optim_options():
             inline=True,
             children=dbp.Slider(
                 id="final-charge",
-                value=80,
+                value=DEFAULT_FINAL_CHARGE,
                 min=0.0,
                 max=100.,
                 stepSize=1.
@@ -234,7 +241,7 @@ def create_feas_optim_options():
             inline=True,
             children=dbp.Slider(
                 id="reserve-capacity",
-                value=20,
+                value=DEFAULT_RESERVE_CAPACITY,
                 min=0.0,
                 max=100.,
                 stepSize=1.
@@ -250,7 +257,7 @@ def create_depot_options():
             label='Max charger power (kW)',
             inline=True,
             children=dbp.NumericInput(
-                id="charger-power", value=150, stepSize=1
+                id="charger-power", value=DEFAULT_CHARGER_POWER, stepSize=1
             )
         ),
         dbp.FormGroup(
@@ -272,7 +279,7 @@ def create_depot_options():
             inline=True,
             children=dbp.Slider(
                 id="depot-battery-eff",
-                value=0.95,
+                value=DEFAULT_DEPOT_BATTERY_EFF,
                 min=0.0,
                 max=1.,
                 stepSize=0.01
@@ -399,11 +406,11 @@ def get_route_selection_form(gtfs_name):
 @app.callback(
     Output("route-options-form", "children"),
     [Input("route-selector-confirm", "n_clicks")],
-    # [State("route-selector", "value")],
+    [State("route-selector", "value")],
     # prevent_initial_callbacks=True,
 )
-def get_route_options_form(n_clicks):
-    if n_clicks:
+def get_route_options_form(n_clicks, routes):
+    if n_clicks and (routes is not None):
         return html.Div(
             id="route-options-form",children=create_route_options()
         )
@@ -427,28 +434,27 @@ def select_all_routes(n_clicks):
     prevent_initial_callbacks=True,
 )
 def calc_bus_number_output(n_clicks, routes, deadhead_percent, peak_passengers):
-    if n_clicks is None or routes is None:
-        return "Select Bus Routes"
-    appdata.set_deadhead(deadhead_percent)
-    appdata.subset_data(routes)
-    appdata.set_passenger_loading(peak_passengers)
-    times, buses_in_traffic = calculate_buses_in_traffic()
+    if (n_clicks is not None) and (routes is not None):
+        appdata.set_deadhead(deadhead_percent)
+        appdata.subset_data(routes)
+        appdata.set_passenger_loading(peak_passengers)
+        times, buses_in_traffic = calculate_buses_in_traffic()
 
-    data = {"hour of week": times, "# buses": buses_in_traffic}
-    df = pd.DataFrame(data)
+        data = {"hour of week": times, "# buses": buses_in_traffic}
+        df = pd.DataFrame(data)
 
-    fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
+        fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
 
-    fig.update_layout(
-        xaxis = dict(
-            tickformat="digit",
-            tickmode='linear',
-            tick0=0,
-            dtick=6
+        fig.update_layout(
+            xaxis = dict(
+                tickformat="digit",
+                tickmode='linear',
+                tick0=0,
+                dtick=6
+            )
         )
-    )
 
-    return dcc.Graph(id="bus-count-graph", figure=fig)
+        return dcc.Graph(id="bus-count-graph", figure=fig)
 
 
 @app.callback(
