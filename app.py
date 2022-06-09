@@ -73,7 +73,7 @@ class AppData:
                    gross_mass,charging_eff,eol_capacity):
         self.bus = ebus.Bus(max_passengers=max_passengers, battery_capacity=bat_capacity,
                        charging_rate=charging_power, gross_mass=gross_mass,
-                       charging_efficiency=charging_eff, end_of_life_cap=eol_capacity)
+                       charging_efficiency=charging_eff, end_of_life_cap=eol_capacity/100)
 
     def predict_energy_consumption(self):
         model = LinearRegressionAbdelatyModel()
@@ -174,31 +174,26 @@ def calculate_buses_in_traffic():
 
 def create_route_options():
     return [
+        html.H4("Route options:"),
         dbp.FormGroup(
-            id='route-options',
-            label='Route options',
-            children=[
-                dbp.FormGroup(
-                    label='deadhead (%)',
-                    inline=True,
-                    children=dbp.Slider(
-                        id="deadhead",
-                        value=10.,
-                        min=0.0,
-                        max=100,
-                        stepSize=1.
-                    )
-                ),
-                dbp.FormGroup(
-                    label='Peak passengers',
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="peak-passengers", value=38, stepSize=1
-                    )
-                ),
-                dbp.Button(id="confirm-route-options", children="Next"),
-            ]
-        )
+            label='deadhead (%)',
+            inline=True,
+            children=dbp.Slider(
+                id="deadhead",
+                value=10.,
+                min=0.0,
+                max=100,
+                stepSize=1.
+            )
+        ),
+        dbp.FormGroup(
+            label='Peak passengers',
+            inline=True,
+            children=dbp.NumericInput(
+                id="peak-passengers", value=38, stepSize=1
+            )
+        ),
+        dbp.Button(id="confirm-route-options", children="Next"),
     ]
 
 
@@ -245,106 +240,96 @@ def create_feas_optim_options():
                 stepSize=1.
             )
         ),
-        dbp.Button(id="confirm-depot-options", children="Next"),
+        dbp.Button(id="confirm-optim-options", children="Next", n_clicks=0),
     ]
 
 def create_depot_options():
     return [
+        html.H4("Depot options:"),
         dbp.FormGroup(
-            id='depot-options',
-            label='depot options:',
-            children=[
-                dbp.FormGroup(
-                    label='Max charger power (kW)',
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="charger-power", value=150, stepSize=1
-                    )
-                ),
-                dbp.FormGroup(
-                    label='Battery capacity (kWh)',
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="depot-battery-capacity", value=0, stepSize=1
-                    )
-                ),
-                dbp.FormGroup(
-                    label='Battery power (kW)',
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="depot-battery-power", value=0, stepSize=1
-                    )
-                ),
-                dbp.FormGroup(
-                    label='Battery efficiency',
-                    inline=True,
-                    children=dbp.Slider(
-                        id="depot-battery-eff",
-                        value=0.95,
-                        min=0.0,
-                        max=1.,
-                        stepSize=0.01
-                    )
-                ),
-            ]
-        )
+            label='Max charger power (kW)',
+            inline=True,
+            children=dbp.NumericInput(
+                id="charger-power", value=150, stepSize=1
+            )
+        ),
+        dbp.FormGroup(
+            label='Battery capacity (kWh)',
+            inline=True,
+            children=dbp.NumericInput(
+                id="depot-battery-capacity", value=0, stepSize=1
+            )
+        ),
+        dbp.FormGroup(
+            label='Battery power (kW)',
+            inline=True,
+            children=dbp.NumericInput(
+                id="depot-battery-power", value=0, stepSize=1
+            )
+        ),
+        dbp.FormGroup(
+            label='Battery efficiency',
+            inline=True,
+            children=dbp.Slider(
+                id="depot-battery-eff",
+                value=0.95,
+                min=0.0,
+                max=1.,
+                stepSize=0.01
+            )
+        ),
     ]
 
 def create_bus_options():
     return [
+        html.H4("Bus options:"),
         dbp.FormGroup(
-            id="bus-options",
-            label="Bus Options",
-            children=[
-                dbp.FormGroup(
-                    label="Max Passengers",
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="max-passenger-count", value=70, stepSize=1
-                    ),
-                ),
-                dbp.FormGroup(
-                    label="Battery capacity (kWh)",
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="battery-capacity-kwh", value=400, stepSize=1
-                    ),
-                ),
-                dbp.FormGroup(
-                    label="Charging power (kW)",
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="charging-capacity-kw", value=300, stepSize=1
-                    ),
-                ),
-                dbp.FormGroup(
-                    label="Gross mass (kg)",
-                    inline=True,
-                    children=dbp.NumericInput(
-                        id="gross-mass-kg", value=18000, stepSize=1
-                    ),
-                ),
-                dbp.FormGroup(
-                    label="Charging efficiency",
-                    inline=True,
-                    children=dbp.Slider(
-                        id="charging-efficiency",
-                        value=0.9,
-                        min=0.0,
-                        max=1.0,
-                        stepSize=0.01,
-                    ),
-                ),
-                dbp.FormGroup(
-                    label="End of life capacity",
-                    inline=True,
-                    children=dbp.Slider(
-                        id="eol-capacity", value=0.8, min=0.0, max=1.0, stepSize=0.01
-                    ),
-                ),
-                dbp.Button(id="confirm-bus-options", children="Next"),
-            ],
-        )
+            label="Max Passengers",
+            inline=True,
+            children=dbp.NumericInput(
+                id="max-passenger-count", value=70, stepSize=1
+            ),
+        ),
+        dbp.FormGroup(
+            label="Battery capacity (kWh)",
+            inline=True,
+            children=dbp.NumericInput(
+                id="battery-capacity-kwh", value=400, stepSize=1
+            ),
+        ),
+        dbp.FormGroup(
+            label="Charging power (kW)",
+            inline=True,
+            children=dbp.NumericInput(
+                id="charging-capacity-kw", value=300, stepSize=1
+            ),
+        ),
+        dbp.FormGroup(
+            label="Gross mass (kg)",
+            inline=True,
+            children=dbp.NumericInput(
+                id="gross-mass-kg", value=18000, stepSize=1
+            ),
+        ),
+        dbp.FormGroup(
+            label="Charging efficiency",
+            inline=True,
+            children=dbp.Slider(
+                id="charging-efficiency",
+                value=0.9,
+                min=0.0,
+                max=1.0,
+                stepSize=0.01,
+            ),
+        ),
+        dbp.FormGroup(
+            label="End of life capacity (%)",
+            inline=True,
+            children=dbp.Slider(
+                id="eol-capacity", value=80, min=0.0, max=100, stepSize=1.
+            ),
+        ),
+        dbp.Button(id="confirm-bus-options", children="Next"),
     ]
 
 
@@ -355,12 +340,17 @@ app.layout = html.Div(
         html.Div(
             className="sidenav",
             children=[
+                html.H4("Select data source:"),
                 dbp.FormGroup(
                     id="formgroup",
                     required=True,
                     children=[dbp.Select(id="gtfs-selector", items=get_gtfs_options())],
                 ),
                 html.Div(id="route-selection-form"),
+                html.Div(id="route-options-form"),
+                html.Div(id="bus-information-form"),
+                html.Div(id="depot-options-form"),
+                html.Div(id="feas-optim-options-form")
             ],
         ),
         html.Div(
@@ -388,18 +378,22 @@ def get_route_selection_form(gtfs_name):
         return [
             html.Div(
                 children=[
-                    dbp.MultiSelect(
+                    html.H4("Select Routes:"),
+                    dcc.Dropdown(
                         id="route-selector",
-                        required=True,
-                        items=[{"value": item, "label": item} for item in routes],
+                        options=[{"value": item, "label": item} for item in routes],
+                        value=["MTL", "NYC"],
+                        multi=True,
                     ),
+                    # dbp.MultiSelect(
+                    #     id="route-selector",
+                    #     required=True,
+                    #     items=[{"value": item, "label": item} for item in routes],
+                    # ),
+                    dbp.Button(id="route-selector-all", children="All", n_clicks=0),
                     dbp.Button(id="route-selector-confirm", children="Next"),
                 ]
             ),
-            html.Div(id="route-options-form"),
-            html.Div(id="bus-information-form"),
-            html.Div(id="depot-options-form"),
-            html.Div(id="feas-optim-options-form")
         ]
 
 @app.callback(
@@ -413,6 +407,17 @@ def get_route_options_form(n_clicks):
         return html.Div(
             id="route-options-form",children=create_route_options()
         )
+
+@app.callback(
+    Output("route-selector", "value"),
+    [Input("route-selector-all", "n_clicks")],
+    prevent_initial_callback=True,
+)
+def select_all_routes(n_clicks):
+    if n_clicks:
+        routes = appdata.get_routes()
+        options = [{"value": item, "label": item} for item in routes]
+        return [option["value"] for option in options]
 
 @app.callback(
     Output("results-bus-number", "children"),
@@ -480,27 +485,25 @@ def show_route_map(n_clicks, gtfs_file, max_passengers,bat_capacity,charging_pow
         )
 
 @app.callback(
-    Output("depot-options-form", "children"),
-    [Input("confirm-bus-options", "n_clicks")],
-    # prevent_initial_callbacks=True
-)
-def show_depot_options_form(n_clicks):
-    if n_clicks:
-        return html.Div(
-            id="depot-information-form", children=create_depot_options()
-        )
-
-@app.callback(
     Output("feas-optim-options-form", "children"),
     [Input("confirm-bus-options", "n_clicks")],
+    prevent_initial_callbacks=True
 )
-def show_init_feas_options_form(n_clicks):
+def show_init_optim_options_form(n_clicks):
     if n_clicks:
-        return create_feas_optim_options()
+        return [
+            html.Div(
+                id="depot-information-form", children=create_depot_options()
+            ),
+            html.Div(
+                id="feas-optim-form", children=create_feas_optim_options()
+            )
+        ]
+
 
 @app.callback(
     Output("results-init-feas", "children"),
-    [Input("confirm-depot-options", "n_clicks")],
+    [Input("confirm-optim-options", "n_clicks")],
     [State("charger-power","value"), State("depot-battery-capacity","value"),
      State("depot-battery-power", "value"), State("depot-battery-eff","value"),
      State("min-charge-time","value"), State("start-charge","value"),
