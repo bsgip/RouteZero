@@ -371,7 +371,7 @@ app.layout = html.Div(
             children=[
                 html.Div(id="results-bus-number", children=None),
                 html.Div(id="results-route-map", children=None),
-                html.Div(id="results-init-feas", children=None)
+                dcc.Loading(html.Div(id="results-init-feas", children=None))
             ],
         ),
     ],
@@ -493,7 +493,7 @@ def show_route_map(n_clicks, gtfs_file, max_passengers,bat_capacity,charging_pow
         map_title = "Route Energy Consumption"
         create_routes_map_figure(gtfs_file, map_title)
         return html.Div(
-            children=html.Iframe(id='map', srcDoc=open(map_title+'.html').read(),width="80%",height=500)
+            children=html.Iframe(id='map', srcDoc=open(map_title+'.html').read(),width="80%",height="600vh")
         )
 
 @app.callback(

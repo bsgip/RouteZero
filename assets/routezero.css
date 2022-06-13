@@ -9,7 +9,7 @@
       "sidenav header"
       "sidenav main"
       "sidenav footer";
-    height: 100vh;
+    /*height: 100vh;*/
   }
   
   /* Give every child element its grid name */
@@ -36,11 +36,11 @@
     padding: 20px;
   }
 
-  .story {
-    grid-area: story;
-    height: 100%;
-    width: 100%;
-  }
+  /*.story {*/
+  /*  grid-area: story;*/
+  /*  height: 100%;*/
+  /*  width: 100%;*/
+  /*}*/
   
   .options {
     grid-area: options;
