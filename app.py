@@ -36,9 +36,9 @@ DEFAULT_DEPOT_BATTERY_EFF = 0.95
 
 class AppData:
     def __init__(self):
-        """ Nothing to do here """
+        """ Not much to do here """
         # self.trips_data = read_gtfs_file(gtfs_name)
-        pass
+        self.advanced_options = False
 
     def read_gtfs_file(self, gtfs_name):
         path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
@@ -46,6 +46,9 @@ class AppData:
 
     def set_deadhead(self, deadhead_percent):
         self.deadhead = deadhead_percent/100
+
+    def set_advanced_options(self, advanced_options):
+        self.advanced_options = advanced_options
 
     def set_optim_options(self, min_charge_time, start_charge, final_charge, reserve_capacity):
         self.min_charge_time = min_charge_time
@@ -280,6 +283,7 @@ def create_depot_options():
                 id="depot-battery-power", value=0, stepSize=1
             )
         ),
+        html.Div(children=[
         dbp.FormGroup(
             label='Battery efficiency',
             inline=True,
@@ -290,7 +294,7 @@ def create_depot_options():
                 max=1.,
                 stepSize=0.01
             )
-        ),
+        )],hidden = not appdata.advanced_options),
     ]
 
 def create_bus_options():
@@ -324,6 +328,7 @@ def create_bus_options():
                 id="gross-mass-kg", value=18000, stepSize=1
             ),
         ),
+        html.Div(children=[
         dbp.FormGroup(
             label="Charging efficiency",
             inline=True,
@@ -334,14 +339,15 @@ def create_bus_options():
                 max=1.0,
                 stepSize=0.01,
             ),
-        ),
+        )], hidden=not appdata.advanced_options),
+        html.Div(children=[
         dbp.FormGroup(
             label="End of life capacity (%)",
             inline=True,
             children=dbp.Slider(
                 id="eol-capacity", value=80, min=0.0, max=100, stepSize=1.,labelStepSize=50,
             ),
-        ),
+        )], hidden=not appdata.advanced_options),
         dbp.Button(id="confirm-bus-options", children="Next"),
     ]
 
@@ -349,7 +355,7 @@ def create_bus_options():
 app.layout = html.Div(
     className="grid-container",
     children=[
-        # html.Div(className="header", children="RouteZero User Interface"),
+        # html.Div(className="header", children=html.H1("RouteZero EBus energy consumption and depot charging model")),
         html.Div(
             className="sidenav",
             children=[
@@ -359,11 +365,13 @@ app.layout = html.Div(
                     required=True,
                     children=[dbp.Select(id="gtfs-selector", items=get_gtfs_options())],
                 ),
+                dbp.Checkbox("advanced options", id='advanced-options-checkbox', checked=False),
                 html.Div(id="route-selection-form"),
                 html.Div(id="route-options-form"),
                 html.Div(id="bus-information-form"),
                 html.Div(id="depot-options-form"),
-                html.Div(id="feas-optim-options-form")
+                html.Div(id="feas-optim-options-form"),
+                html.Div(id="hidden-div", style={"display":"none"}, children=None)
             ], style={'padding': 10, 'flex': 1}
         ),
         html.Div(
@@ -377,6 +385,13 @@ app.layout = html.Div(
     ],
 )
 
+@app.callback(
+    Output("hidden-div", "children"),
+    Input("advanced-options-checkbox", "checked")
+)
+def set_use_advanced_options(advanced_options):
+    appdata.set_advanced_options(advanced_options)
+    return None
 
 @app.callback(
     Output("route-selection-form", "children"),
@@ -391,7 +406,7 @@ def get_route_selection_form(gtfs_name):
         return [
             html.Div(
                 children=[
-                    html.H4("Select Routes:"),
+                    html.H4("Select routes serviced by depot:"),
                     dcc.Dropdown(
                         id="route-selector",
                         options=[{"value": item, "label": item} for item in routes],
