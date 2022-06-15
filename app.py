@@ -3,6 +3,7 @@ import inflection
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+import json
 import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -34,112 +35,107 @@ DEFAULT_RESERVE_CAPACITY = 20
 DEFAULT_CHARGER_POWER = 150
 DEFAULT_DEPOT_BATTERY_EFF = 0.95
 
+
 class AppData:
     def __init__(self):
-        """ Not much to do here """
-        # self.trips_data = read_gtfs_file(gtfs_name)
-        self.advanced_options = False
+        """ Nothing to do here """
+        pass
 
-    def read_gtfs_file(self, gtfs_name):
+    @staticmethod
+    def read_gtfs_file(gtfs_name):
         path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
-        self.trips_data = pd.read_csv(path)
+        return pd.read_csv(path)
 
-    def set_deadhead(self, deadhead_percent):
-        self.deadhead = deadhead_percent/100
+    @staticmethod
+    def battery_dict(depot_bat_cap, depot_bat_power, depot_bat_eff):
+        battery = {"power": depot_bat_power,
+                   "capacity": depot_bat_cap,
+                   "efficiency": depot_bat_eff}
+        return battery
 
-    def set_advanced_options(self, advanced_options):
-        self.advanced_options = advanced_options
-
-    def set_optim_options(self, min_charge_time, start_charge, final_charge, reserve_capacity):
-        self.min_charge_time = min_charge_time
-        self.start_charge = start_charge/100
-        self.final_charge = final_charge/100
-        self.reserve_capacity =  reserve_capacity/100
-
-    def set_charger_power(self, charger_power):
-        chargers = {"power":charger_power, "number":"optim", "cost":10}
-        self.chargers = chargers
-
-    def add_battery_parameters(self, depot_bat_cap, depot_bat_power, depot_bat_eff):
-        battery = {"power":depot_bat_power,
-                   "capacity":depot_bat_cap,
-                   "efficiency":depot_bat_eff}
-        self.battery=battery
-
-    def set_passenger_loading(self, passengers):
-        trips_data_sel = self.trips_data_sel.copy()
+    @staticmethod
+    def set_passenger_loading(subset_trips, passengers):
+        trips_data_sel = subset_trips.copy()
         trips_data_sel['passengers'] = passengers
-        self.trips_data_sel = trips_data_sel
+        return trips_data_sel
 
-    def get_routes(self):
-        return self.trips_data["route_short_name"].unique().tolist()
+    @staticmethod
+    def get_routes(trips_data):
+        return trips_data["route_short_name"].unique().tolist()
 
-    def subset_data(self, selected_routes):
-        trips_data_sel = self.trips_data[self.trips_data["route_short_name"].isin(selected_routes)]
-        self.trips_data_sel = trips_data_sel
+    @staticmethod
+    def subset_data(selected_routes, trips_data):
+        trips_data_sel = trips_data[trips_data["route_short_name"].isin(selected_routes)]
+        return trips_data_sel
 
-    def get_subset_data(self):
-        return self.trips_data_sel
+    @staticmethod
+    def get_bus(bus_dict):
+        max_passengers = bus_dict["max_passengers"]
+        bat_capacity = bus_dict["bat_capacity"]
+        charging_power = bus_dict["charging_power"]
+        gross_mass = bus_dict["gross_mass"]
+        charging_eff = bus_dict['charging_eff']
+        eol_capacity = bus_dict["eol_capacity"]
+        return ebus.Bus(max_passengers=max_passengers, battery_capacity=bat_capacity,
+                            charging_rate=charging_power, gross_mass=gross_mass,
+                            charging_efficiency=charging_eff, end_of_life_cap=eol_capacity / 100)
 
-    def add_bus_parameters(self,  max_passengers,bat_capacity,charging_power,
-                   gross_mass,charging_eff,eol_capacity):
-        self.bus = ebus.Bus(max_passengers=max_passengers, battery_capacity=bat_capacity,
-                       charging_rate=charging_power, gross_mass=gross_mass,
-                       charging_efficiency=charging_eff, end_of_life_cap=eol_capacity/100)
-
-    def predict_energy_consumption(self):
+    @staticmethod
+    def predict_energy_consumption(bus, subset_trip_data):
         model = LinearRegressionAbdelatyModel()
-        subset_trip_data = self.get_subset_data()
-        ec_km, ec_total = model.predict_hottest(subset_trip_data, self.bus)
-        self.ec_km = ec_km
-        self.ec_total = ec_total
-        return ec_km
-
-    def store_init_feas_results(self, results):
-        self.init_feas_results = results
-
-# initialise global object to hold app data
-appdata = AppData()
+        ec_km, ec_total = model.predict_hottest(subset_trip_data, bus)
+        return ec_km, ec_total
 
 
-def run_init_feasibility():
-    battery = appdata.battery
-    chargers = appdata.chargers
-    grid_limit="optim"
-    bus = appdata.bus
-    trips_data = appdata.get_subset_data()
-    ec_total = appdata.ec_total
-    deadhead = appdata.deadhead
-    min_charge_time = appdata.min_charge_time
-    start_charge = appdata.start_charge
-    final_charge = appdata.final_charge
-    reserve = appdata.reserve_capacity
-    problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=start_charge, final_charge=final_charge,
-                                  deadhead=deadhead,resolution=RESOLUTION, min_charge_time=min_charge_time, reserve=reserve,
-                                  battery=battery)
+def create_options_dict():
+    return dict(advanced_options=False,
+                deadhead=DEFAULT_DEADHEAD / 100,
+                min_charge_time=DEFAULT_MIN_CHARGE_TIME,
+                start_charge=DEFAULT_START_CHARGE,
+                final_charge=DEFAULT_FINAL_CHARGE,
+                reserve_capacity=DEFAULT_RESERVE_CAPACITY,
+                )
+
+
+def run_init_feasibility(options_dict, ec_dict):
+    grid_limit = "optim"
+    ec_total = ec_dict["ec_total"]
+    deadhead = options_dict["deadhead"]
+    min_charge_time = options_dict["min_charge_time"]
+    start_charge = options_dict["start_charge"]
+    final_charge = options_dict["final_charge"]
+    reserve = options_dict["reserve_capacity"]
+    battery = options_dict["battery"]
+    chargers = options_dict["chargers"]
+    bus = AppData.get_bus(options_dict["bus_dict"])
+    problem = Extended_feas_problem(None, ec_total, bus, chargers, grid_limit, start_charge=start_charge,
+                                    final_charge=final_charge,
+                                    deadhead=deadhead, resolution=RESOLUTION, min_charge_time=min_charge_time,
+                                    reserve=reserve,
+                                    battery=battery, ec_dict=ec_dict)
     results = problem.solve()
-    appdata.store_init_feas_results(results)
+    return results
 
 
 def create_optim_results_plot(results):
-
-    times = results["times"]/60
+    times = results["times"] / 60
     grid_limit = results["grid_limit"]
     battery_power = results['battery_action']
     charging_power = results["charging_power"]
     aggregate_power = results["aggregate_power"]
 
-    data = {"hour of week": times, "total charging power": charging_power,"depot battery power":battery_power, "aggregate power":aggregate_power}
+    data = {"hour of week": times, "total charging power": charging_power, "depot battery power": battery_power,
+            "aggregate power": aggregate_power}
     df = pd.DataFrame(data)
 
-    fig = px.line(df, x="hour of week", y=df.columns[1:-1],title="Nice title")
+    fig = px.line(df, x="hour of week", y=df.columns[1:-1], title="Nice title")
     fig.add_trace(go.Scatter(x=df["hour of week"], y=df["aggregate power"], name='aggregate power',
-                         line = dict(dash='dash')))
-    fig.add_hline(y=grid_limit, line_dash="dash",annotation_text="Required grid limit",
+                             line=dict(dash='dash')))
+    fig.add_hline(y=grid_limit, line_dash="dash", annotation_text="Required grid limit",
                   annotation_position="top right")
 
     fig.update_layout(
-        xaxis = dict(
+        xaxis=dict(
             tickformat="digit",
             tickmode='linear',
             tick0=0,
@@ -151,6 +147,7 @@ def create_optim_results_plot(results):
 
     return dcc.Graph(id="charging-graph", figure=fig)
 
+
 def get_gtfs_options():
     folders = [
         folder
@@ -159,18 +156,20 @@ def get_gtfs_options():
     ]
     return [{"value": item, "label": inflection.titleize(item)} for item in folders]
 
+
 def read_shp_file(gtfs_name):
     path = os.path.join(GTFS_FOLDER, gtfs_name, SHP_FILENAME)
     return gpd.read_file(path)
 
-def create_routes_map_figure(gtfs_name, map_title):
+
+def create_routes_map_figure(gtfs_name, map_title, ec_km, subset_trip_data):
     gdf = read_shp_file(gtfs_name)
 
     from RouteZero.map import create_map
-    ec_km = appdata.predict_energy_consumption()
 
     colorbar_str = 'energy per km'
-    m = create_map(trips_data=appdata.get_subset_data(), shapes=gdf,value=ec_km, map_title=map_title, colorbar_str=colorbar_str)
+    m = create_map(trips_data=subset_trip_data, shapes=gdf, value=ec_km, map_title=map_title,
+                   colorbar_str=colorbar_str)
     # save html
     path = map_title + '.html'
     html_page = f'{path}'
@@ -178,12 +177,6 @@ def create_routes_map_figure(gtfs_name, map_title):
 
     return m
 
-def calculate_buses_in_traffic():
-    trips_data_sel = appdata.get_subset_data()
-    times, buses_in_traffic = route.calc_buses_in_traffic(
-        trips_data_sel, deadhead=appdata.deadhead, resolution=RESOLUTION
-    )
-    return (times / 60).astype(int), buses_in_traffic
 
 def create_route_options():
     return [
@@ -209,6 +202,7 @@ def create_route_options():
         ),
         dbp.Button(id="confirm-route-options", children="Next"),
     ]
+
 
 def create_feas_optim_options():
     return [
@@ -259,7 +253,8 @@ def create_feas_optim_options():
         dbp.Button(id="confirm-optim-options", children="Next", n_clicks=0),
     ]
 
-def create_depot_options():
+
+def create_depot_options(advanced_options):
     return [
         html.H4("Depot options:"),
         dbp.FormGroup(
@@ -284,20 +279,21 @@ def create_depot_options():
             )
         ),
         html.Div(children=[
-        dbp.FormGroup(
-            label='Battery efficiency',
-            inline=True,
-            children=dbp.Slider(
-                id="depot-battery-eff",
-                value=DEFAULT_DEPOT_BATTERY_EFF,
-                min=0.0,
-                max=1.,
-                stepSize=0.01
-            )
-        )],hidden = not appdata.advanced_options),
+            dbp.FormGroup(
+                label='Battery efficiency',
+                inline=True,
+                children=dbp.Slider(
+                    id="depot-battery-eff",
+                    value=DEFAULT_DEPOT_BATTERY_EFF,
+                    min=0.0,
+                    max=1.,
+                    stepSize=0.01
+                )
+            )], hidden=not advanced_options),
     ]
 
-def create_bus_options():
+
+def create_bus_options(advanced_options):
     return [
         html.H4("Bus options:"),
         dbp.FormGroup(
@@ -329,25 +325,25 @@ def create_bus_options():
             ),
         ),
         html.Div(children=[
-        dbp.FormGroup(
-            label="Charging efficiency",
-            inline=True,
-            children=dbp.Slider(
-                id="charging-efficiency",
-                value=0.9,
-                min=0.0,
-                max=1.0,
-                stepSize=0.01,
-            ),
-        )], hidden=not appdata.advanced_options),
+            dbp.FormGroup(
+                label="Charging efficiency",
+                inline=True,
+                children=dbp.Slider(
+                    id="charging-efficiency",
+                    value=0.9,
+                    min=0.0,
+                    max=1.0,
+                    stepSize=0.01,
+                ),
+            )], hidden=not advanced_options),
         html.Div(children=[
-        dbp.FormGroup(
-            label="End of life capacity (%)",
-            inline=True,
-            children=dbp.Slider(
-                id="eol-capacity", value=80, min=0.0, max=100, stepSize=1.,labelStepSize=50,
-            ),
-        )], hidden=not appdata.advanced_options),
+            dbp.FormGroup(
+                label="End of life capacity (%)",
+                inline=True,
+                children=dbp.Slider(
+                    id="eol-capacity", value=80, min=0.0, max=100, stepSize=1., labelStepSize=50,
+                ),
+            )], hidden=not advanced_options),
         dbp.Button(id="confirm-bus-options", children="Next"),
     ]
 
@@ -371,7 +367,8 @@ app.layout = html.Div(
                 html.Div(id="bus-information-form"),
                 html.Div(id="depot-options-form"),
                 html.Div(id="feas-optim-options-form"),
-                html.Div(id="hidden-div", style={"display":"none"}, children=None)
+                html.Div(id="hidden-div", style={"display": "none"}, children=None),
+                # html.Div(id="options-store",style={"display":"none"})
             ], style={'padding': 10, 'flex': 1}
         ),
         html.Div(
@@ -382,47 +379,43 @@ app.layout = html.Div(
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
             ],
         ),
+        dcc.Store(id="route-names-store", storage_type="session"),
+        dcc.Store(id="bus-store", data=dict(), storage_type="session"),
+        dcc.Store(id="ec-store", data=dict(), storage_type="session"),
+        dcc.Store(id="init-results-store", data=dict(), storage_type="session"),
     ],
+
 )
 
-@app.callback(
-    Output("hidden-div", "children"),
-    Input("advanced-options-checkbox", "checked")
-)
-def set_use_advanced_options(advanced_options):
-    appdata.set_advanced_options(advanced_options)
-    return None
 
 @app.callback(
-    Output("route-selection-form", "children"),
+    [Output("route-selection-form", "children"),
+     Output("route-names-store", "data")],
     Input("gtfs-selector", "value"),
     prevent_initial_callbacks=True,
 )
 def get_route_selection_form(gtfs_name):
-
     if gtfs_name is not None:
-        appdata.read_gtfs_file(gtfs_name)
-        routes = appdata.get_routes()
+        trips_data = AppData.read_gtfs_file(gtfs_name)
+        route_names = AppData.get_routes(trips_data)
         return [
             html.Div(
                 children=[
                     html.H4("Select routes serviced by depot:"),
                     dcc.Dropdown(
                         id="route-selector",
-                        options=[{"value": item, "label": item} for item in routes],
+                        options=[{"value": item, "label": item} for item in route_names],
                         value=["MTL", "NYC"],
                         multi=True,
                     ),
-                    # dbp.MultiSelect(
-                    #     id="route-selector",
-                    #     required=True,
-                    #     items=[{"value": item, "label": item} for item in routes],
-                    # ),
                     dbp.Button(id="route-selector-all", children="All", n_clicks=0),
                     dbp.Button(id="route-selector-confirm", children="Next"),
                 ]
             ),
-        ]
+        ], route_names
+    else:
+        return (None, None)
+
 
 @app.callback(
     Output("route-options-form", "children"),
@@ -430,44 +423,34 @@ def get_route_selection_form(gtfs_name):
     [State("route-selector", "value")],
     # prevent_initial_callbacks=True,
 )
-def get_route_options_form(n_clicks, routes):
-    if n_clicks and (routes is not None):
+def get_route_options_form(n_clicks, routes_sel):
+    if n_clicks and (routes_sel is not None):
         return html.Div(
-            id="route-options-form",children=create_route_options()
+            id="route-options-form", children=create_route_options()
         )
+
 
 @app.callback(
     Output("route-selector", "value"),
     [Input("route-selector-all", "n_clicks")],
+    [State("route-names-store", "data")],
     prevent_initial_callback=True,
 )
-def select_all_routes(n_clicks):
+def select_all_routes(n_clicks, route_names):
     if n_clicks:
-        routes = appdata.get_routes()
-        options = [{"value": item, "label": item} for item in routes]
+        options = [{"value": item, "label": item} for item in route_names]
         return [option["value"] for option in options]
 
-@app.callback(
-    Output("results-bus-number", "children"),
-    [Input("confirm-route-options", "n_clicks")],
-    [State("route-selector", "value"), State("deadhead","value"),
-     State("peak-passengers", "value")],
-    prevent_initial_callbacks=True,
-)
-def calc_bus_number_output(n_clicks, routes, deadhead_percent, peak_passengers):
-    if (n_clicks is not None) and (routes is not None):
-        appdata.set_deadhead(deadhead_percent)
-        appdata.subset_data(routes)
-        appdata.set_passenger_loading(peak_passengers)
-        times, buses_in_traffic = calculate_buses_in_traffic()
 
+def create_buses_in_traffic_plots(times, buses_in_traffic):
+        times = times/60
         data = {"hour of week": times, "# buses": buses_in_traffic}
         df = pd.DataFrame(data)
 
         fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
 
         fig.update_layout(
-            xaxis = dict(
+            xaxis=dict(
                 tickformat="digit",
                 tickmode='linear',
                 tick0=0,
@@ -481,46 +464,75 @@ def calc_bus_number_output(n_clicks, routes, deadhead_percent, peak_passengers):
 @app.callback(
     Output("bus-information-form", "children"),
     [Input("confirm-route-options", "n_clicks")],
+    [State("advanced-options-checkbox", "checked")]
     # prevent_initial_callbacks=True
 )
-def show_bus_options_form(n_clicks):
+def show_bus_options_form(n_clicks, advanced_options):
     if n_clicks:
         return html.Div(
-            id="bus-information-form", children=create_bus_options()
+            id="bus-information-form", children=create_bus_options(advanced_options)
         )
 
 
 @app.callback(
-    Output("results-route-map", "children"),
+    [Output("results-route-map", "children"),
+     Output("results-bus-number", "children"),
+     Output("bus-store", "data"),
+     Output("ec-store", "data")],
     [Input("confirm-bus-options", "n_clicks")],
-    [State("gtfs-selector", "value"), State("max-passenger-count","value"),
-     State("battery-capacity-kwh","value"), State("charging-capacity-kw", "value"),
-     State("gross-mass-kg","value"), State("charging-efficiency","value"),
-     State("eol-capacity","value")],
-    # prevent_initial_callbacks=True
+    [State("gtfs-selector", "value"), State("max-passenger-count", "value"),
+     State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
+     State("gross-mass-kg", "value"), State("charging-efficiency", "value"),
+     State("eol-capacity", "value"), State("gtfs-selector", "value"),
+     State("route-selector", "value"), State("peak-passengers", "value"),
+     State("deadhead", "value")],
+    prevent_initial_callbacks=True
 )
-def show_route_map(n_clicks, gtfs_file, max_passengers,bat_capacity,charging_power,
-                   gross_mass,charging_eff,eol_capacity):
-    appdata.add_bus_parameters(max_passengers,bat_capacity,charging_power,
-                   gross_mass,charging_eff,eol_capacity)
-
+def show_route_results(n_clicks, gtfs_file, max_passengers, bat_capacity, charging_power,
+                   gross_mass, charging_eff, eol_capacity, gtfs_name, routes_sel,
+                   peak_passengers, deadhead_percent):
     if n_clicks:
+        bus_dict = {"max_passengers":max_passengers, "bat_capacity":bat_capacity,
+                    "charging_power":charging_power, "gross_mass":gross_mass,
+                    "charging_eff":charging_eff, "eol_capacity":eol_capacity}
+        bus = AppData.get_bus(bus_dict)
+        trips_data = AppData.read_gtfs_file(gtfs_name)
+        subset_trip_data = AppData.subset_data(routes_sel, trips_data)
+        subset_trip_data = AppData.set_passenger_loading(subset_trip_data, peak_passengers)
+        ec_km, ec_total = AppData.predict_energy_consumption(bus, subset_trip_data)
+        times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = route.calc_buses_in_traffic(subset_trip_data,
+                                                                                                         deadhead_percent/100,
+                                                                                                         RESOLUTION,
+                                                                                                         ec_total)
+        ec_dict = {"ec_km": ec_km,
+                   "ec_total": ec_total,
+                   "times": times,
+                   "buses_in_traffic":buses_in_traffic,
+                   "depart_trip_energy_req":depart_trip_energy_req,
+                   "return_trip_energy_cons":return_trip_energy_cons}
+
         map_title = "Route Energy Consumption"
-        create_routes_map_figure(gtfs_file, map_title)
-        return html.Div(
-            children=html.Iframe(id='map', srcDoc=open(map_title+'.html').read(),width="80%",height="600vh")
-        )
+        create_routes_map_figure(gtfs_file, map_title, ec_km, subset_trip_data)
+        return (html.Div(
+                    children=html.Iframe(id='map', srcDoc=open(map_title + '.html').read(), width="80%", height="600vh")
+                ),
+                create_buses_in_traffic_plots(times, buses_in_traffic),
+                bus_dict, ec_dict)
+    else:
+        return (None, None, None, None)
+
 
 @app.callback(
     Output("feas-optim-options-form", "children"),
     [Input("confirm-bus-options", "n_clicks")],
+    [State("advanced-options-checkbox", "checked")],
     prevent_initial_callbacks=True
 )
-def show_init_optim_options_form(n_clicks):
+def show_init_optim_options_form(n_clicks, advanced_options):
     if n_clicks:
         return [
             html.Div(
-                id="depot-information-form", children=create_depot_options()
+                id="depot-information-form", children=create_depot_options(advanced_options)
             ),
             html.Div(
                 id="feas-optim-form", children=create_feas_optim_options()
@@ -531,23 +543,32 @@ def show_init_optim_options_form(n_clicks):
 @app.callback(
     Output("results-init-feas", "children"),
     [Input("confirm-optim-options", "n_clicks")],
-    [State("charger-power","value"), State("depot-battery-capacity","value"),
-     State("depot-battery-power", "value"), State("depot-battery-eff","value"),
-     State("min-charge-time","value"), State("start-charge","value"),
-     State("final-charge","value"),State("reserve-capacity","value")],
+    [State("charger-power", "value"), State("depot-battery-capacity", "value"),
+     State("depot-battery-power", "value"), State("depot-battery-eff", "value"),
+     State("min-charge-time", "value"), State("start-charge", "value"),
+     State("final-charge", "value"), State("reserve-capacity", "value"),
+     State("deadhead", "value"), State("bus-store", "data"),
+     State("ec-store", "data")],
     prevent_initial_callbacks=True
 )
 def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_power,
                             depot_bat_eff, min_charge_time, start_charge, final_charge,
-                            reserve_capacity):
+                            reserve_capacity, deadhead_percent, bus_dict, ec_dict):
     if n_clicks:
-        appdata.add_battery_parameters(depot_bat_cap, depot_bat_power, depot_bat_eff)
-        appdata.set_charger_power(charger_power)
-        appdata.set_optim_options(min_charge_time, start_charge, final_charge, reserve_capacity)
-        run_init_feasibility()
-        results = appdata.init_feas_results
+        battery = AppData.battery_dict(depot_bat_cap, depot_bat_power, depot_bat_eff)
+        chargers = {"power":charger_power, "number":"optim","cost":10}
+        options_dict = {"deadhead":deadhead_percent/100,
+                        "min_charge_time":min_charge_time,
+                        "start_charge":start_charge/100,
+                        "final_charge":final_charge/100,
+                        "reserve_capacity":reserve_capacity/100,
+                        "chargers":chargers,
+                        "battery":battery,
+                        "bus_dict":bus_dict}
+        results = run_init_feasibility(options_dict, ec_dict)
         return create_optim_results_plot(results)
-
+    else:
+        return None
 
 
 if __name__ == "__main__":

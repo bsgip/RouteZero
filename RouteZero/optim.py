@@ -15,11 +15,18 @@ from RouteZero.route import calc_buses_in_traffic
 
 class base_problem():
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
-                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None, windows=None):
-        times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = calc_buses_in_traffic(trips_data,
-                                                                                                         deadhead,
-                                                                                                         resolution,
-                                                                                                         trips_ec)
+                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None, windows=None, ec_dict=None):
+
+        if ec_dict is not None:
+            times = np.array(ec_dict["times"])
+            buses_in_traffic = np.array(ec_dict["buses_in_traffic"])
+            return_trip_energy_cons = ec_dict["return_trip_energy_cons"]
+            depart_trip_energy_req = ec_dict["depart_trip_energy_req"]
+        else:
+            times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = calc_buses_in_traffic(trips_data,
+                                                                                                             deadhead,
+                                                                                                             resolution,
+                                                                                                             trips_ec)
         # if num_buses not specified calculate minimum feasible number
         if num_buses is None:
             num_buses = buses_in_traffic.max()
@@ -380,7 +387,7 @@ class Feasibility_problem(base_problem):
 
 class Extended_feas_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=5000, reserve=0.2, battery=None, num_buses=None, windows=None):
+                 resolution=10, min_charge_time=60, Q=5000, reserve=0.2, battery=None, num_buses=None, windows=None, ec_dict=None):
         """
         Minimise the grid power limit, and the number of chargers in each set.
         :param trips_data: the summarised trips dataframe
@@ -400,7 +407,7 @@ class Extended_feas_problem(base_problem):
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit=grid_limit, deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses, windows=windows)
+                         battery=battery, num_buses=num_buses, windows=windows, ec_dict=ec_dict)
         self.Q = Q
 
     def _build_pyomo(self):
