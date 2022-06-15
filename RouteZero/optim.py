@@ -63,7 +63,8 @@ class base_problem():
         self.start_charge = start_charge
         self.final_charge = final_charge
         self.reserve = reserve
-        self.reserve_energy = reserve * num_buses * bus.battery_capacity
+        self.max_energy = num_buses * bus.battery_capacity
+        self.reserve_energy = reserve * self.max_energy
         self.bus_eta = bus.charging_efficiency
         self.battery = battery
         self.windows = self._charge_windows(windows) if (windows is not None) else None
@@ -125,7 +126,9 @@ class base_problem():
                    "battery_soc": battery_soc,
                    "battery_soc_delta": bv_array,
                    "battery_spec":self.battery,
-                   "times":self.times}
+                   "times":self.times,
+                   "reserve_energy":self.reserve_energy,
+                   "max_cap":self.max_energy}
 
         return results
 

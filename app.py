@@ -3,7 +3,6 @@ import inflection
 import pandas as pd
 import geopandas as gpd
 import plotly.colors as px_colors
-import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import dash_blueprint as dbp
@@ -14,6 +13,7 @@ from RouteZero import route
 import RouteZero.bus as ebus
 from RouteZero.models import LinearRegressionAbdelatyModel
 from RouteZero.optim import Extended_feas_problem
+from RouteZero.optim import determine_charger_use
 
 app = Dash(__name__, suppress_callback_exceptions=True)
 
@@ -112,7 +112,13 @@ def run_init_feasibility(options_dict, ec_dict):
                                     deadhead=deadhead, resolution=RESOLUTION, min_charge_time=min_charge_time,
                                     reserve=reserve,
                                     battery=battery, ec_dict=ec_dict)
+
     results = problem.solve()
+    used_daily, charged_daily = problem.summarise_daily()
+    results['used_daily'] = used_daily
+    results['charged_daily'] = charged_daily
+    chargers_in_use = determine_charger_use(chargers, problem.Nt_avail, results["charging_power"], problem.windows)
+    results['chargers_in_use'] = chargers_in_use
     return results
 
 
@@ -122,16 +128,52 @@ def create_optim_results_plot(results):
     battery_power = results['battery_action']
     charging_power = results["charging_power"]
     aggregate_power = results["aggregate_power"]
+    energy_available = results["total_energy_available"]
+    battery_soc = results['battery_soc']
+    reserve_energy = results['reserve_energy']
+    used_daily = results['used_daily']
+    charged_daily = results['charged_daily']
+
 
     data = {"hour of week": times, "total charging power": charging_power, "depot battery power": battery_power,
             "aggregate power": aggregate_power}
     df = pd.DataFrame(data)
 
-    fig = px.line(df, x="hour of week", y=df.columns[1:-1], title="Nice title")
+    fig = make_subplots(rows=4, cols=1)
+
+    fig.add_trace(
+        go.Scatter(x=times, y=charging_power, name="sum bus charging", legendgroup='1'),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=times, y=battery_power, name="battery power", legendgroup='1'),
+        row=1, col=1
+    )
     fig.add_trace(go.Scatter(x=df["hour of week"], y=df["aggregate power"], name='aggregate power',
-                             line=dict(dash='dash')))
+                             line=dict(dash='dash'), legendgroup='1'), row=1, col=1)
     fig.add_hline(y=grid_limit, line_dash="dash", annotation_text="Required grid limit",
-                  annotation_position="top right")
+                  annotation_position="top right", row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=times, y=energy_available, name='sum bus battery', legendgroup='2'),
+                  row=2, col=1)
+    fig.add_trace(go.Scatter(x=times, y=battery_soc, name='depot battery', legendgroup='2'),
+                  row=2, col=1)
+    fig.add_hline(y=reserve_energy, line_dash="dash", annotation_text="Reserve bus capacity",
+                  annotation_position="top right", row=2, col=1)
+
+    fig.add_trace(go.Bar(x=['Mon','Tues','Wed','Thurs','Fri','Sat','Sun'], y=used_daily/1000, name='used daily', legendgroup='3'),
+                  row=3, col=1)
+    fig.add_trace(go.Bar(x=['Mon','Tues','Wed','Thurs','Fri','Sat','Sun'], y=charged_daily/1000, name='charged daily', legendgroup='3'),
+                  row=3, col=1)
+
+    chargers_in_use = results['chargers_in_use']
+    chargers = results['chargers']
+    r, c = chargers_in_use.shape
+    for i in range(c):
+        fig.add_trace(go.Scatter(x=times, y=chargers_in_use[:, i],
+                                 name="{}kW chargers".format(chargers['power'][i]),
+                                 legendgroup=4),
+                      row=4, col=1)
 
     fig.update_layout(
         xaxis=dict(
@@ -141,7 +183,25 @@ def create_optim_results_plot(results):
             dtick=6
         ),
         legend_title=None,
-        yaxis_title='Power (kW)'
+        yaxis_title='Power (kW)',
+        height=1066, #800/3*4,
+        width=800,
+        legend_tracegroupgap=190,
+        xaxis2=dict(
+            tickformat="digit",
+            tickmode='linear',
+            tick0=0,
+            dtick=6
+        ),
+        yaxis2_title='State of charge (kWh)',
+        yaxis3_title='Energy (MWh)',
+        xaxis4=dict(
+            tickformat="digit",
+            tickmode='linear',
+            tick0=0,
+            dtick=6
+        ),
+        yaxis4_title='Number'
     )
 
     return dcc.Graph(id="charging-graph", figure=fig)
@@ -169,12 +229,8 @@ def create_routes_map_figure(gtfs_name, map_title, ec_km, subset_trip_data):
     colorbar_str = 'energy per km'
     m = create_map(trips_data=subset_trip_data, shapes=gdf, value=ec_km, map_title=map_title,
                    colorbar_str=colorbar_str)
-    # save html
-    path = map_title + '.html'
-    html_page = f'{path}'
-    m.save(html_page)
 
-    return m
+    return m._repr_html_()
 
 
 def create_route_options():
@@ -257,7 +313,7 @@ def create_depot_options(advanced_options):
     return [
         html.H3("Step 3) Optimise charging at depot"),
         html.P("Optimises the aggregate charging profile to find the minimum power rating"
-               "for the depot grid connection and the minimum number of bus chargers required."),
+               " for the depot grid connection and the minimum number of bus chargers required."),
         html.H4("Depot options:"),
         dbp.FormGroup(
             label='Max charger power (kW)',
@@ -380,7 +436,7 @@ app.layout = html.Div(
                 html.Div(id="results-bus-number", children=None),
                 html.Div(id="results-route-map", children=None),
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
-            ],
+            ]
         ),
         dcc.Store(id="route-names-store", storage_type="session"),
         dcc.Store(id="bus-store", data=dict(), storage_type="session"),
@@ -472,11 +528,21 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
 
         # fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
         #
+        # tickvals = [[i*24+9, i*25+15] for i in range(7)]
+        # tickvals = [x for sublist in tickvals for x in sublist]
+        # days = ['Mon', 'Tues', 'Wed', 'Thurs', "Fri", "Sat", "Sun"]
+        # d1 = ['9am '+ val for val in days]
+        # d2 = ['3pm '+ val for val in days]
+        # ticktext = [val for pair in zip(d1,d2) for val in pair]
+
+
         fig.update_layout(
             xaxis=dict(
                 tickformat="digit",
                 tickmode='linear',
                 tick0=0,
+                # tickvals=tickvals,
+                # ticktext=ticktext,
                 dtick=6,
                 title='Hour of week'
             ),
@@ -539,10 +605,10 @@ def show_route_results(n_clicks, gtfs_file, max_passengers, bat_capacity, chargi
                    "return_trip_energy_cons":return_trip_energy_cons}
 
         map_title = "Route Energy Consumption"
-        create_routes_map_figure(gtfs_file, map_title, ec_km, subset_trip_data)
-        return (html.Div(
-                    children=html.Iframe(id='map', srcDoc=open(map_title + '.html').read(), width="80%", height="600vh")
-                ),
+        map_html = create_routes_map_figure(gtfs_file, map_title, ec_km, subset_trip_data)
+        return (html.Center(html.Div(
+                    children=html.Iframe(id='map', srcDoc=map_html, width="80%", height="700vh")
+                )),
                 create_buses_in_traffic_plots(times, buses_in_traffic, depart_trip_energy_req),
                 bus_dict, ec_dict)
     else:
@@ -593,7 +659,7 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
                         "battery":battery,
                         "bus_dict":bus_dict}
         results = run_init_feasibility(options_dict, ec_dict)
-        return create_optim_results_plot(results)
+        return html.Center(create_optim_results_plot(results))
     else:
         return None
 
