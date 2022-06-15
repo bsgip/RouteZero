@@ -2,8 +2,7 @@ import os
 import inflection
 import pandas as pd
 import geopandas as gpd
-import numpy as np
-import json
+import plotly.colors as px_colors
 import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -180,6 +179,7 @@ def create_routes_map_figure(gtfs_name, map_title, ec_km, subset_trip_data):
 
 def create_route_options():
     return [
+        html.H3("Step 2) Predicting energy usage on routes"),
         html.H4("Route options:"),
         dbp.FormGroup(
             label='deadhead (%)',
@@ -200,7 +200,6 @@ def create_route_options():
                 id="peak-passengers", value=DEFAULT_PEAK_PASSENGER, stepSize=1
             )
         ),
-        dbp.Button(id="confirm-route-options", children="Next"),
     ]
 
 
@@ -250,12 +249,15 @@ def create_feas_optim_options():
                 labelStepSize=50,
             )
         ),
-        dbp.Button(id="confirm-optim-options", children="Next", n_clicks=0),
+        dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0),
     ]
 
 
 def create_depot_options(advanced_options):
     return [
+        html.H3("Step 3) Optimise charging at depot"),
+        html.P("Optimises the aggregate charging profile to find the minimum power rating"
+               "for the depot grid connection and the minimum number of bus chargers required."),
         html.H4("Depot options:"),
         dbp.FormGroup(
             label='Max charger power (kW)',
@@ -344,7 +346,7 @@ def create_bus_options(advanced_options):
                     id="eol-capacity", value=80, min=0.0, max=100, stepSize=1., labelStepSize=50,
                 ),
             )], hidden=not advanced_options),
-        dbp.Button(id="confirm-bus-options", children="Next"),
+        dbp.Button(id="confirm-bus-options", children="Predict route energy usage"),
     ]
 
 
@@ -355,6 +357,7 @@ app.layout = html.Div(
         html.Div(
             className="sidenav",
             children=[
+                html.H3("Step 1) Select gtfs source and routes"),
                 html.H4("Select data source:"),
                 dbp.FormGroup(
                     id="formgroup",
@@ -418,16 +421,21 @@ def get_route_selection_form(gtfs_name):
 
 
 @app.callback(
-    Output("route-options-form", "children"),
+    [Output("route-options-form", "children"),
+     Output("bus-information-form", "children")],
     [Input("route-selector-confirm", "n_clicks")],
-    [State("route-selector", "value")],
+    [State("route-selector", "value"),
+     State("advanced-options-checkbox", "checked")],
     # prevent_initial_callbacks=True,
 )
-def get_route_options_form(n_clicks, routes_sel):
+def get_route_options_form(n_clicks, routes_sel, advanced_options):
     if n_clicks and (routes_sel is not None):
         return html.Div(
-            id="route-options-form", children=create_route_options()
-        )
+                    id="route-options-form", children=create_route_options()
+                ), show_bus_options_form(advanced_options)
+
+    else:
+        return (None, None)
 
 
 @app.callback(
@@ -442,36 +450,55 @@ def select_all_routes(n_clicks, route_names):
         return [option["value"] for option in options]
 
 
-def create_buses_in_traffic_plots(times, buses_in_traffic):
+def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
         times = times/60
-        data = {"hour of week": times, "# buses": buses_in_traffic}
-        df = pd.DataFrame(data)
+        # data = {"hour of week": times, "# buses": buses_in_traffic}
+        # df = pd.DataFrame(data)
 
-        fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
+        fig = make_subplots(rows=1, cols=2,
+                            subplot_titles=['buses on route',
+                                            'Total energy usage on routes'])
 
+        cols = px_colors.DEFAULT_PLOTLY_COLORS
+        fig.add_trace(
+            go.Scatter(x=times, y=buses_in_traffic, name='', line=dict(color=cols[0])),
+            row=1, col=1
+        )
+
+        fig.add_trace(
+            go.Scatter(x=times, y=energy_req, name='', line=dict(color=cols[0])),
+            row=1, col=2
+        )
+
+        # fig = px.line(df, x="hour of week", y="# buses", title="Buses on routes throughout the week")
+        #
         fig.update_layout(
             xaxis=dict(
                 tickformat="digit",
                 tickmode='linear',
                 tick0=0,
-                dtick=6
-            )
+                dtick=6,
+                title='Hour of week'
+            ),
+            yaxis=dict(title='# buses'),
+            xaxis2=dict(
+                tickformat="digit",
+                tickmode='linear',
+                tick0=0,
+                dtick=6,
+                title='Hour of week'
+            ),
+            yaxis2=dict(title='Energy (kWh)'),
+            showlegend=False
         )
 
         return dcc.Graph(id="bus-count-graph", figure=fig)
 
 
-@app.callback(
-    Output("bus-information-form", "children"),
-    [Input("confirm-route-options", "n_clicks")],
-    [State("advanced-options-checkbox", "checked")]
-    # prevent_initial_callbacks=True
-)
-def show_bus_options_form(n_clicks, advanced_options):
-    if n_clicks:
-        return html.Div(
-            id="bus-information-form", children=create_bus_options(advanced_options)
-        )
+def show_bus_options_form(advanced_options):
+    return html.Div(
+        id="bus-information-form", children=create_bus_options(advanced_options)
+    )
 
 
 @app.callback(
@@ -516,7 +543,7 @@ def show_route_results(n_clicks, gtfs_file, max_passengers, bat_capacity, chargi
         return (html.Div(
                     children=html.Iframe(id='map', srcDoc=open(map_title + '.html').read(), width="80%", height="600vh")
                 ),
-                create_buses_in_traffic_plots(times, buses_in_traffic),
+                create_buses_in_traffic_plots(times, buses_in_traffic, depart_trip_energy_req),
                 bus_dict, ec_dict)
     else:
         return (None, None, None, None)
