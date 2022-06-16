@@ -77,7 +77,7 @@ def read_busiest_week_data(inpath, route_short_names, route_desc, disp=True):
     try:
         agency = _read_agency(inpath)
         if len(agency)==1:
-            routes['agency_name'] = agency['agency_name']
+            routes['agency_name'] = agency['agency_name'].to_list()[0]
         else:
             routes = pd.merge(routes, agency[['agency_id', 'agency_name']], how='left')
     except:

@@ -205,7 +205,7 @@ def _trip_temperatures(trip_summary, num_years=5, percentiles=[1, 99], disp=True
         trip_summary.loc[inds, 'min_temp'] = temp_min
         trip_summary.loc[inds, 'max_temp'] = temp_max
 
-        trip_summary.dropna(inplace=True)
+    trip_summary.dropna(inplace=True)
     return trip_summary
 
 def _stop_elevations(stops, disp=True):
@@ -251,9 +251,9 @@ def _elevation_from_shape(shapes):
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
-    inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    # name = 'vic_metro_bus_gtfs'
-    # inpath = '../data/gtfs/'+name+'.zip'
+    # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
+    name = 'vic_interstate_gtfs'
+    inpath = '../data/gtfs/'+name+'.zip'
 
 
     route_short_names, route_desc = gtfs.read_route_desc_and_names(inpath)
@@ -281,10 +281,10 @@ if __name__=="__main__":
     plt.ylabel('# buses')
     plt.show()
     #
-    # trip_summary.to_csv('../data/gtfs/greater_sydney/trip_data.csv')
-    # shapes.to_file('../data/gtfs/greater_sydney/shapes.shp')
-    # trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
-    # shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
+    # trip_summary.to_csv('../data/gtfs/leichhardt/trip_data.csv')
+    # shapes.to_file('../data/gtfs/leichhardt/shapes.shp')
+    trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
+    shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
 
     #
     # from sklearn.metrics.pairwise import haversine_distances
