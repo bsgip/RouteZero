@@ -607,7 +607,7 @@ def show_route_results(n_clicks, gtfs_file, max_passengers, bat_capacity, chargi
         map_title = "Route Energy Consumption"
         map_html = create_routes_map_figure(gtfs_file, map_title, ec_km, subset_trip_data)
         return (html.Center(html.Div(
-                    children=html.Iframe(id='map', srcDoc=map_html, width="80%", height="700vh")
+                    children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="750vh")
                 )),
                 create_buses_in_traffic_plots(times, buses_in_traffic, depart_trip_energy_req),
                 bus_dict, ec_dict)
