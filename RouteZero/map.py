@@ -52,6 +52,8 @@ def _create_gdf_of_value(trips_data, shapes, value, window=None, mode='max'):
     tmp.drop(columns=['agency_name','trip_id','unique_id','date','start_loc_x','Unnamed: 0',
                       'start_loc_y','start_el','end_loc_x','end_loc_y','end_el','av_elevation'], inplace=True)
 
+    tmp.reset_index(inplace=True)       # fixes indexing bug
+
     # filter to specified window
     if window is not None:
         tmp = tmp[(tmp['start_hour'] > window[0]) & ((tmp['start_hour'] < window[1]) )]
