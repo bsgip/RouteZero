@@ -456,7 +456,6 @@ app.layout = html.Div(
 
 )
 
-
 @app.callback(
     [Output("agency-selection-form", "children"),
      Output("agency-store", "data")],
