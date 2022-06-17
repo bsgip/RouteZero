@@ -48,7 +48,9 @@ def _create_gdf_of_value(trips_data, shapes, value, window=None, mode='max'):
 
     tmp = trips_data.copy()
     tmp['start_hour'] = np.mod(tmp['trip_start_time']/3600,24)
-    tmp['val'] = value
+    tmp['ec/km'] = value
+    tmp.drop(columns=['agency_name','trip_id','unique_id','date','start_loc_x','Unnamed: 0',
+                      'start_loc_y','start_el','end_loc_x','end_loc_y','end_el','av_elevation'], inplace=True)
 
     # filter to specified window
     if window is not None:
@@ -56,33 +58,28 @@ def _create_gdf_of_value(trips_data, shapes, value, window=None, mode='max'):
 
     # apply mode of aggregation
     if mode=='max':
-        shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['val'].max().reset_index()
-    elif mode=='mean':
-        shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['val'].mean().reset_index()
-    elif mode=='min':
-        shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['val'].min().reset_index()
+        inds = tmp.groupby(by=['shape_id','route_short_name','route_id','direction_id'])['ec/km'].idxmax().values
+        filtered=tmp.iloc[inds]
+
+    # elif mode=='mean':
+    #     inds = tmp.groupby(by=['shape_id','route_short_name','route_id','direction_id'])['ec/km'].idxmax().values
+    #     filtered=tmp.iloc[inds]
+        # shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['ec/km'].mean().reset_index()
+    # elif mode=='min':
+    #     shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['ec/km'].min().reset_index()
     else:
-        print('invalid mode')
+        print('invalid mode, only implemented mode is max')
 
     ## Prepare data for plotting on a map
-    gdf = gpd.GeoDataFrame(shapes[shapes['shape_id'].isin(tmp['shape_id'].unique().tolist())])
-    gdf['route_id'] = "nan"
-    gdf['route_short_name'] = "nan"
-    gdf['val'] = np.nan
+    gdf = gpd.GeoDataFrame(shapes[shapes['shape_id'].isin(filtered['shape_id'].unique().tolist())])
+    gdf = gdf.merge(filtered, how='left')
 
-    for i, s in gdf.iterrows():
-        shape_id = s['shape_id']
-        val = shape_val[shape_val.shape_id==shape_id].val
-        route_id = shape_val[shape_val.shape_id==shape_id].route_id.to_numpy()[0]
-        route_short_name = shape_val[shape_val.shape_id == shape_id].route_short_name.to_numpy()[0]
-
-        # if i==1090:
-        #     print('here')
-        gdf.at[i, 'val'] = np.max(val.values)
-        gdf.at[i, 'route_id'] = route_id
-        gdf.at[i, 'route_short_name'] = route_short_name
-        # print(i)
+    gdf.rename(columns={'average_gradient_%':'gradient (%)', "stops_per_km":"stops/km",
+                        "average_speed_kmh":"speed (km/h)","max_temp":"max temp","min_temp":"min temp"}, inplace=True)
     gdf.dropna(inplace=True)
+
+    # gdf = gdf.merge(trips_data[['shape_id', 'average_gradient_%']], how='left')
+    # gdf.rename(columns={"average_gradient_%":"gradient (%)"}, inplace=True)
 
     return gdf
 
@@ -97,13 +94,14 @@ def _create_gdf_map(gdf, map_title, colorbar_str):
                    tiles='cartodbpositron', zoom_start=10)
     gdf.crs = {'init': 'epsg:4326'}
 
-    colorscale = branca.colormap.linear.YlGnBu_09.scale(gdf['val'].min(), gdf['val'].max())
+    colorscale = branca.colormap.linear.YlGnBu_09.scale(gdf['ec/km'].min(), gdf['ec/km'].max())
 
     def style_function(feature):
         return {
             'fillOpacity': 0.5,
             'weight': 3,  # math.log2(feature['properties']['speed'])*2,
-            'color': colorscale(feature['properties']['val'])
+            'color': colorscale(feature['properties']['ec/km']),
+            # "dashArray": '20, 20'
         }
 
     # my code for lines
@@ -111,7 +109,7 @@ def _create_gdf_map(gdf, map_title, colorbar_str):
     folium.GeoJson(
         geo_data,
         style_function=style_function,
-        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'val'],
+        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'ec/km', 'gradient (%)', 'stops/km', "speed (km/h)"],
                                                # aliases=tooltip_labels,
                                                labels=True,
                                                sticky=False)
@@ -147,9 +145,9 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel
 
-    trips_data = pd.read_csv('../data/gtfs/vic_interstate/trip_data.csv')
+    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
     trips_data['passengers'] = 38
-    shapes = gpd.read_file('../data/gtfs/vic_interstate/shapes.shp')
+    shapes = gpd.read_file('../data/gtfs/leichhardt/shapes.shp')
     window = [5, 10]
     mode='max'
 

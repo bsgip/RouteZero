@@ -429,7 +429,7 @@ app.layout = html.Div(
                     children=[dbp.Select(id="gtfs-selector", items=get_gtfs_options())],
                 ),
                 dbp.Checkbox("advanced options", id='advanced-options-checkbox', checked=False),
-                html.Div(id="agency-selection-form"),
+                dcc.Loading(html.Div(id="agency-selection-form")),
                 html.Div(id="route-selection-form"),
                 html.Div(id="route-options-form"),
                 html.Div(id="bus-information-form"),
@@ -442,7 +442,7 @@ app.layout = html.Div(
         html.Div(
             className="main",
             children=[
-                html.Div(id="results-bus-number", children=None),
+                dcc.Loading(html.Div(id="results-bus-number", children=None)),
                 html.Div(id="results-route-map", children=None),
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
             ]
