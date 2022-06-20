@@ -86,10 +86,21 @@ Results can be exported to CSV
 
 ### Nice to haves
 
-*   Repeated worst case condition days and how many can be handled
-*   Automatic comparisons
-*   Other plots
-*   Emissions saved on routes (would require a diesel bus consumption model)
+* Repeated worst case condition days and how many can be handled
+* Automatic comparisons
+* Other plots
+* Emissions saved on routes (would require a diesel bus consumption model)
+
+
+## docker
+to build the image
+```
+ DOCKER_BUILDKIT=1 docker build -t routezero:v0.0.13  --ssh default .
+```
+
+to run the docker image
+
+
 
 
 
