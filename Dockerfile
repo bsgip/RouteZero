@@ -31,11 +31,7 @@ COPY --from=stage_0  dash-blueprint dash-blueprint
 RUN pip install --no-cache-dir --quiet RouteZero/
 RUN pip install dash
 RUN pip install --no-cache-dir --quiet dash-blueprint/ && rm -rf dash-blueprint
-RUN pip install inflection
 RUN rm -rf /root/.cache/pip
 
-
-
-#ENV PATH=$PATH:/opt/optimisers
-#USER ${NB_USER}            # todo: workout a defualt user for hte python image that it can swap into,
-CMD ["/bin/bash"]
+RUN cd ./RouteZero
+CMD ["python", "RouteZero/app.py"]
