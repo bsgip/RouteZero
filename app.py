@@ -9,6 +9,7 @@ import dash_blueprint as dbp
 from dash import Dash, html, dcc
 from dash.dependencies import Input, Output, State
 import numpy as np
+from flask import Flask
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -17,9 +18,10 @@ from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
 # app = Dash(__name__, suppress_callback_exceptions=True)
+server = Flask(__name__)
 app = Dash(
             __name__,
-            server=True,
+            server=server,
             suppress_callback_exceptions=True,
             compress=True,
             title="RouteZero",
