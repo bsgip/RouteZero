@@ -16,7 +16,15 @@ from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
-app = Dash(__name__, suppress_callback_exceptions=True)
+# app = Dash(__name__, suppress_callback_exceptions=True)
+app = Dash(
+            __name__,
+            server=True,
+            suppress_callback_exceptions=True,
+            compress=True,
+            title="RouteZero",
+            update_title=None,
+        )
 
 app.scripts.config.serve_locally = True
 app.css.config.serve_locally = True
