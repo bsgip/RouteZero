@@ -94,3 +94,23 @@ Results can be exported to CSV
 
 
 
+## deployment
+Need to have these dash settings
+```angular2html
+server = Flask(__name__)
+app = dash.Dash(
+__name__,
+server=server,
+suppress_callback_exceptions=True,
+compress=True,
+title="RouteZero",
+update_title=None,
+)
+```
+
+and then run
+
+```angular2html
+gunicorn --workers=5 --threads=1 -b 0.0.0.0:8050 app:server
+```
+
