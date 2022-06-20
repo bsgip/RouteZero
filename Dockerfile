@@ -32,6 +32,7 @@ RUN pip install --no-cache-dir --quiet RouteZero/
 RUN pip install dash
 RUN pip install --no-cache-dir --quiet dash-blueprint/ && rm -rf dash-blueprint
 RUN rm -rf /root/.cache/pip
+RUN pip install inflection
 
 RUN cd ./RouteZero
 CMD ["python", "RouteZero/app.py"]
