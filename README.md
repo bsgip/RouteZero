@@ -98,7 +98,10 @@ to build the image
  DOCKER_BUILDKIT=1 docker build -t routezero:v0.0.13  --ssh default .
 ```
 
-to run the docker image
+to run the docker image (-d for detached)
+```
+docker run -p 8050:8050 routezero:v0.0.13
+```
 
 
 

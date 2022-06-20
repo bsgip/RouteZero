@@ -4,7 +4,7 @@ services:
   routezero:
     image: routezero:v0.0.13
     ports:
-      - 8888:8888
+      - 8050:8050
     volumes:
       - /home/johannes/test/:/home/
 #      - ${HOST_WORKDIR}:/home/
