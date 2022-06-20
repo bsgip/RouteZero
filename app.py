@@ -12,7 +12,7 @@ import numpy as np
 
 from RouteZero import route
 import RouteZero.bus as ebus
-from RouteZero.models import LinearRegressionAbdelatyModel
+from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
@@ -69,7 +69,7 @@ class AppData:
 
     @staticmethod
     def subset_data(selected_routes, trips_data, agency_name):
-        tmp = trips_data[trips_data["agency_name"]==agency_name]
+        tmp = trips_data[trips_data["agency_name"] == agency_name]
         trips_data_sel = tmp[tmp["route_short_name"].isin(selected_routes)]
         return trips_data_sel
 
@@ -452,9 +452,11 @@ app.layout = html.Div(
         dcc.Store(id="bus-store", data=dict(), storage_type="memory"),
         dcc.Store(id="ec-store", data=dict(), storage_type="memory"),
         dcc.Store(id="init-results-store", data=dict(), storage_type="memory"),
+        dcc.Store(id="route-summary-store", data=dict(), storage_type="memory")
     ],
 
 )
+
 
 @app.callback(
     [Output("agency-selection-form", "children"),
@@ -493,7 +495,7 @@ def get_agency_selection_form(gtfs_name):
 def get_route_selection_form(agency_name, route_agency_dict):
     if agency_name is not None:
         route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
-        tmp = route_agency_df[route_agency_df["agency_name"]==agency_name]
+        tmp = route_agency_df[route_agency_df["agency_name"] == agency_name]
         route_names = tmp['route_short_name'].unique().tolist()
         # trips_data = AppData.read_gtfs_file(gtfs_name)
         # route_names = AppData.get_routes(trips_data)
@@ -596,14 +598,15 @@ def show_bus_options_form(advanced_options):
     [Output("results-route-map", "children"),
      Output("results-bus-number", "children"),
      Output("bus-store", "data"),
-     Output("ec-store", "data")],
+     Output("ec-store", "data"),
+     Output("route-summary-store", "data")],
     [Input("confirm-bus-options", "n_clicks")],
     [State("max-passenger-count", "value"),
      State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
      State("gross-mass-kg", "value"), State("charging-efficiency", "value"),
      State("eol-capacity", "value"), State("gtfs-selector", "value"),
      State("route-selector", "value"), State("peak-passengers", "value"),
-     State("deadhead", "value"), State("agency-selector","value")],
+     State("deadhead", "value"), State("agency-selector", "value")],
     prevent_initial_callbacks=True
 )
 def show_route_results(n_clicks, max_passengers, bat_capacity, charging_power,
@@ -618,6 +621,9 @@ def show_route_results(n_clicks, max_passengers, bat_capacity, charging_power,
         subset_trip_data = AppData.subset_data(routes_sel, trips_data, agency_name)
         subset_trip_data = AppData.set_passenger_loading(subset_trip_data, peak_passengers)
         ec_km, ec_total = AppData.predict_energy_consumption(bus, subset_trip_data)
+
+        route_summaries = summarise_results(trips_data, ec_km, ec_total)
+
         times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = route.calc_buses_in_traffic(
             subset_trip_data,
             deadhead_percent / 100,
@@ -640,9 +646,9 @@ def show_route_results(n_clicks, max_passengers, bat_capacity, charging_power,
             children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="750vh")
         )),
                 create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
-                bus_dict, ec_dict)
+                bus_dict, ec_dict, route_summaries.to_dict(orient='index'))
     else:
-        return (None, None, None, None)
+        return (None, None, None, None, None)
 
 
 @app.callback(

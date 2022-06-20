@@ -142,6 +142,45 @@ class LinearRegressionAbdelatyModel(Model):
         hvacs = self.hvac_func(temps) * hours_km
         return hvacs
 
+
+def summarise_results(trips_data, ec_km, ec_total):
+    """
+    creates a dataframe that summarises the routes key parameters and energy usages binned within time windows
+    :param trips_data: summarised trips dataframe
+    :param ec_km: the energy usage per km for each trip in trips_data
+    :param ec_total: the total energy usage for each trip in trips_data
+    :return:
+    """
+
+    windows = [0, 6, 9.5, 12, 15, 18, 22, 24]
+
+    tmp = trips_data.copy()
+    tmp['start_hour'] = np.mod(tmp['trip_start_time']/3600,24)
+    tmp['ec/km (kwh/km)'] = ec_km
+    tmp['ec (kwh)'] = ec_total
+    tmp.drop(columns=['agency_name','trip_id','unique_id','date','start_loc_x','Unnamed: 0',
+                      'start_loc_y','start_el','end_loc_x','end_loc_y','end_el','av_elevation',
+                      'trip_start_time','trip_end_time'], inplace=True)
+
+    tmp.reset_index(inplace=True, drop=True)
+
+    tmp['hour window'] = pd.cut(tmp['start_hour'], windows)
+
+    # tmp.groupby(by=['route_id','direction_id','shape_id','window'])['ec/km'].max()
+    tmp.sort_values(by='ec/km (kwh/km)', inplace=True, ascending=False)
+    df = tmp.groupby(by=['route_id','direction_id','shape_id','hour window']).head(1).reset_index(drop=True)
+
+    df['trip_duration'] = df['trip_duration']/60
+    df.drop(columns='start_hour',inplace=True)
+    df.rename(columns={'average_gradient_%':'average gradient (%)', "stops_per_km":"stops/km",
+                        "average_speed_kmh":"average speed (km/h)","max_temp":"possible max temp",
+                       "min_temp":"possible min temp", "trip_distance":"trip distance (m)",
+                       "trip_duration":"trip duration (mins)", "num_stops":"number stops"}, inplace=True)
+    df['hour window'] = [(x.left, x.right) for x in df['hour window'].values]
+
+    return df
+
+
 if __name__=="__main__":
     import RouteZero.bus as ebus
     trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
@@ -150,4 +189,6 @@ if __name__=="__main__":
     model = LinearRegressionAbdelatyModel()
     ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
 
+    df = summarise_results(trips_data, ec_km, ec_total)
+    df2 = df.copy()
 
