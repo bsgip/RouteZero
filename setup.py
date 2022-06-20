@@ -5,19 +5,20 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
-    'pyomo>=3.5',
-    'numpy>=1.21',
-    'pandas>=1.3',
-    'geopy>=2.2',
-    'matplotlib>=3.5',
-    'scipy>=1.7',
-    'folium>=0.12',
-    'branca>=0.4',
-    'SRTM.py>=0.3',
+    'pyomo~=6.4',
+    'numpy~=1.21',
+    'pandas~=1.3',
+    'geopy~=2.2',
+    'matplotlib~=3.5',
+    'scipy~=1.7',
+    'folium~=0.12',
+    'branca~=0.4',
+    'SRTM.py~=0.3',
     'meteostat>=1.5',
     'partridge>=1.1',
-    'tqdm>=4.64',
-    'geopandas>=0.10'
+    'tqdm~=4.64',
+    'geopandas~=0.10',
+    'inflection~=0.5'
 ]
 
 if sys.version_info < (3, 7):
