@@ -34,75 +34,67 @@ def _folium_open(f_map, path):
 #     gdf['max_EC_total'] = np.nan
 #     gdf['max_EC_km'] = np.nan
 
-def _create_gdf_of_value(trips_data, shapes, value, window=None, mode='max'):
+def _create_gdf_of_value(route_summaries, shapes, window=None):
     """
     creates a geopandas dataframe that has route shapes and an associated value so that routes can be plotted on a map
     and color coded by value
-    :param trips_data: summarised trips dataframe
+    :param route_summaries: summaries of the routes binned into time windows
     :param shapes: shapes dataframe
-    :param value: the value we wish to show in our plot, needs to be a list of the same length as trips_data, one value for each row
     :param window: optional list with two hour values specifying to only look at trips that start in that hour window
-    :param mode: when aggregating multiple results from within a window, what mode to use 'max', 'mean', or 'min'
     :return:
     """
 
-    tmp = trips_data.copy()
-    tmp['start_hour'] = np.mod(tmp['trip_start_time']/3600,24)
-    tmp['ec/km'] = value
-    tmp.drop(columns=['agency_name','trip_id','unique_id','date','start_loc_x','Unnamed: 0',
-                      'start_loc_y','start_el','end_loc_x','end_loc_y','end_el','av_elevation'], inplace=True)
+    tmp = route_summaries.copy()
+
 
     tmp.reset_index(inplace=True)       # fixes indexing bug
 
     # filter to specified window
     if window is not None:
-        tmp = tmp[(tmp['start_hour'] > window[0]) & ((tmp['start_hour'] < window[1]) )]
+        tmp['window_strings'] = tmp['hour window'].apply(lambda x:"{one:.1f} - {two:.1f}".format(one=x[0], two=x[1]))
+        tmp = tmp[tmp['window_strings']==window]
+        tmp.reset_index(drop=True, inplace=True)
 
-    # apply mode of aggregation
-    if mode=='max':
-        inds = tmp.groupby(by=['shape_id','route_short_name','route_id','direction_id'])['ec/km'].idxmax().values
-        filtered=tmp.iloc[inds]
+    inds = tmp.groupby(by=['shape_id','route_short_name','route_id','direction_id'])['ec/km (kwh/km)'].idxmax().values
+    filtered=tmp.iloc[inds]
 
-    # elif mode=='mean':
-    #     inds = tmp.groupby(by=['shape_id','route_short_name','route_id','direction_id'])['ec/km'].idxmax().values
-    #     filtered=tmp.iloc[inds]
-        # shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['ec/km'].mean().reset_index()
-    # elif mode=='min':
-    #     shape_val = tmp.groupby(by=['shape_id','route_short_name','route_id'])['ec/km'].min().reset_index()
-    else:
-        print('invalid mode, only implemented mode is max')
 
     ## Prepare data for plotting on a map
     gdf = gpd.GeoDataFrame(shapes[shapes['shape_id'].isin(filtered['shape_id'].unique().tolist())])
     gdf = gdf.merge(filtered, how='left')
 
-    gdf.rename(columns={'average_gradient_%':'gradient (%)', "stops_per_km":"stops/km",
-                        "average_speed_kmh":"speed (km/h)","max_temp":"max temp","min_temp":"min temp"}, inplace=True)
+    gdf.rename(columns={'average gradient (%)':'gradient (%)',
+                        "average speed (km/h)":"speed (km/h)",
+                        "possible max temp":"max temp",
+                        "possible min temp":"min temp"}, inplace=True)
     gdf.dropna(inplace=True)
 
-    # gdf = gdf.merge(trips_data[['shape_id', 'average_gradient_%']], how='left')
-    # gdf.rename(columns={"average_gradient_%":"gradient (%)"}, inplace=True)
 
     return gdf
 
-def _create_gdf_map(gdf, map_title, colorbar_str):
+def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
     minx, miny, maxx, maxy = gdf.geometry.total_bounds
 
     centroid_lat = miny + (maxy - miny) / 2
     centroid_lon = minx + (maxx - minx) / 2
+
+    if min_val is None:
+        min_val = gdf['ec/km (kwh/km)'].min()
+    if max_val is None:
+        max_val = gdf['ec/km (kwh/km)'].max()
 
     ## create a map of total energy consumption
     m = folium.Map(location=[centroid_lat, centroid_lon],
                    tiles='cartodbpositron', zoom_start=10)
     gdf.crs = {'init': 'epsg:4326'}
 
-    colorscale = branca.colormap.linear.YlGnBu_09.scale(gdf['ec/km'].min(), gdf['ec/km'].max())
+    colorscale = branca.colormap.linear.YlGnBu_09.scale(min_val, max_val)
 
     def style_function(feature):
         return {
             'fillOpacity': 0.5,
             'weight': 3,  # math.log2(feature['properties']['speed'])*2,
-            'color': colorscale(feature['properties']['ec/km']),
+            'color': colorscale(feature['properties']['ec/km (kwh/km)']),
             # "dashArray": '20, 20'
         }
 
@@ -111,7 +103,8 @@ def _create_gdf_map(gdf, map_title, colorbar_str):
     folium.GeoJson(
         geo_data,
         style_function=style_function,
-        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'ec/km', 'gradient (%)', 'stops/km', "speed (km/h)"],
+        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'ec/km (kwh/km)', 'gradient (%)',
+                                                       'stops/km', "speed (km/h)", "max temp", "min temp"],
                                                # aliases=tooltip_labels,
                                                labels=True,
                                                sticky=False)
@@ -129,23 +122,25 @@ def _create_gdf_map(gdf, map_title, colorbar_str):
 
     return m
 
-def create_map(trips_data, shapes, value, map_title,colorbar_str, window=None, mode='max'):
+def create_map(route_summaries, shapes, map_title,colorbar_str, window=None):
     """
     create a map of the routes that happen during the window color coded by value parameter
-    :param trips_data: summarised trips dataframe
+    :param route_summaries: summarised route results
     :param shapes: shapes dataframe
-    :param value: the value we wish to show in our plot, needs to be a list of the same length as trips_data, one value for each row
     :param window: optional list with two hour values specifying to only look at trips that start in that hour window
-    :param mode: when aggregating multiple results from within a window, what mode to use 'max', 'mean', or 'min'
     :return:
     """
-    gdf = _create_gdf_of_value(trips_data, shapes, value, window=window, mode=mode)
-    m = _create_gdf_map(gdf, map_title, colorbar_str)
+
+    max_val = route_summaries['ec/km (kwh/km)'].max()
+    min_val = route_summaries['ec/km (kwh/km)'].min()
+
+    gdf = _create_gdf_of_value(route_summaries, shapes, window=window)
+    m = _create_gdf_map(gdf, map_title, colorbar_str, max_val=max_val, min_val=min_val)
     return m
 
 if __name__=="__main__":
     import RouteZero.bus as ebus
-    from RouteZero.models import LinearRegressionAbdelatyModel
+    from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 
     trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
     trips_data['passengers'] = 38
@@ -157,8 +152,9 @@ if __name__=="__main__":
     model = LinearRegressionAbdelatyModel()
     ec_km, ec_total = model.predict_hottest(trips_data, bus)
 
-    value = ec_km
-    gdf = _create_gdf_of_value(trips_data, shapes, ec_km, window=None, mode='max')
+    route_summaries = summarise_results(trips_data, ec_km, ec_total)
+
+    gdf = _create_gdf_of_value(route_summaries, shapes, window='0.0 - 6.0')
 
     map_title = "Route Energy Consumption"
     colorbar_str = 'energy per km'
