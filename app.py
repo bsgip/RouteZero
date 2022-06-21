@@ -469,7 +469,7 @@ def get_agency_selection_form(gtfs_name):
     if gtfs_name is not None:
         trips_data = AppData.read_gtfs_file(gtfs_name)
         agency_names = AppData.get_agencies(trips_data)
-        route_agency_df = trips_data[["route_short_name", "agency_name"]]
+        route_agency_df = trips_data[["route_short_name", "agency_name"]].drop_duplicates()
         route_agency_dict = route_agency_df.to_dict()
         return [
                    html.Div(
@@ -623,7 +623,7 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
         subset_trip_data = AppData.set_passenger_loading(subset_trip_data, peak_passengers)
         ec_km, ec_total = AppData.predict_energy_consumption(bus, subset_trip_data)
 
-        route_summaries = summarise_results(trips_data, ec_km, ec_total)
+        route_summaries = summarise_results(subset_trip_data, ec_km, ec_total)
 
         times, buses_in_traffic, depart_trip_energy_req, return_trip_energy_cons = route.calc_buses_in_traffic(
             subset_trip_data,
