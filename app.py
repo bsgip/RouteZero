@@ -9,10 +9,8 @@ import numpy as np
 
 # dash stuff
 import dash_blueprint as dbp
-# from dash import Dash, html, dcc
-# from dash.dependencies import Input, Output, State
-from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
-    ServersideOutputTransform
+from dash import Dash, html, dcc
+from dash.dependencies import Input, Output, State
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -20,7 +18,7 @@ from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
-app = DashProxy(__name__, suppress_callback_exceptions=True, transforms=[ServersideOutputTransform()])
+app = Dash(__name__, suppress_callback_exceptions=True)
 
 app.scripts.config.serve_locally = True
 app.css.config.serve_locally = True
@@ -463,7 +461,7 @@ app.layout = html.Div(
 
 @app.callback(
     [Output("agency-selection-form", "children"),
-     ServersideOutput("agency-store", "data")],
+     Output("agency-store", "data")],
     Input("gtfs-selector", "value"),
     prevent_initial_callback=True
 )
@@ -601,9 +599,9 @@ def show_bus_options_form(advanced_options):
 @app.callback(
     [
      Output("results-bus-number", "children"),
-     ServersideOutput("bus-store", "data"),
-     ServersideOutput("ec-store", "data"),
-     ServersideOutput("route-summary-store", "data")],
+     Output("bus-store", "data"),
+     Output("ec-store", "data"),
+     Output("route-summary-store", "data")],
     [Input("confirm-bus-options", "n_clicks")],
     [State("max-passenger-count", "value"),
      State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
