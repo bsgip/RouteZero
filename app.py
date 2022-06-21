@@ -646,7 +646,7 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
                 [create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
                  html.Center(
                      html.Div([
-                         html.P("Time window:    ",
+                         html.P("Time window for map results:    ",
                                 style={"display": "inline-block", "padding": 10}),
                          # dcc.Dropdown(window_options,
                          #              id='window-selector',
