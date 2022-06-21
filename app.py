@@ -7,13 +7,14 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import numpy as np
 from flask import Flask
+import time
 
 # dash stuff
 import dash_blueprint as dbp
 # from dash import Dash, html, dcc
 # from dash.dependencies import Input, Output, State
 from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
-    ServersideOutputTransform
+    ServersideOutputTransform, RedisStore, FileSystemStore
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -21,6 +22,9 @@ from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
+
+# backend = RedisStore()
+# backend = FileSystemStore(threshold=100)
 server = Flask(__name__)
 app = DashProxy(
             __name__,
@@ -229,6 +233,7 @@ def create_optim_results_plot(results):
 
 
 def get_gtfs_options():
+    # delete_old_files()
     folders = [
         folder
         for folder in os.listdir(GTFS_FOLDER)
@@ -426,6 +431,14 @@ def create_bus_options(advanced_options):
         dbp.Button(id="confirm-bus-options", children="Predict route energy usage"),
     ]
 
+# def delete_old_files():
+#     path = "./file_system_store"
+#     now = time.time()
+#     for f in os.listdir(path):
+#         f = os.path.join(path, f)
+#         if os.stat(f).st_mtime < now - 0:
+#             if os.path.isfile(f):
+#                 os.remove(f)
 
 app.layout = html.Div(
     className="grid-container",
