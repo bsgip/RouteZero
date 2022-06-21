@@ -472,7 +472,7 @@ def get_agency_selection_form(gtfs_name):
         trips_data = AppData.read_gtfs_file(gtfs_name)
         agency_names = AppData.get_agencies(trips_data)
         route_agency_df = trips_data[["route_short_name", "agency_name"]].drop_duplicates()
-        # route_agency_dict = route_agency_df.to_dict()
+        route_agency_dict = route_agency_df.to_dict()
         return [
                    html.Div(
                        children=[
@@ -483,7 +483,7 @@ def get_agency_selection_form(gtfs_name):
 
                        ]
                    ),
-               ], route_agency_df
+               ], route_agency_dict
     else:
         return (None, None)
 
@@ -494,9 +494,9 @@ def get_agency_selection_form(gtfs_name):
     [State("agency-store", "data")],
     prevent_initial_callbacks=True,
 )
-def get_route_selection_form(agency_name, route_agency_df):
-    if agency_name is not None:
-        # route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
+def get_route_selection_form(agency_name, route_agency_dict):
+    if (agency_name is not None) and (route_agency_dict is not None):
+        route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
         tmp = route_agency_df[route_agency_df["agency_name"] == agency_name]
         route_names = tmp['route_short_name'].unique().tolist()
         # trips_data = AppData.read_gtfs_file(gtfs_name)
