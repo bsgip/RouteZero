@@ -114,7 +114,6 @@ def create_options_dict():
 
 def run_init_feasibility(options_dict, ec_dict):
     grid_limit = "optim"
-    ec_total = ec_dict["ec_total"]
     deadhead = options_dict["deadhead"]
     min_charge_time = options_dict["min_charge_time"]
     start_charge = options_dict["start_charge"]
@@ -123,7 +122,7 @@ def run_init_feasibility(options_dict, ec_dict):
     battery = options_dict["battery"]
     chargers = options_dict["chargers"]
     bus = AppData.get_bus(options_dict["bus_dict"])
-    problem = Extended_feas_problem(None, ec_total, bus, chargers, grid_limit, start_charge=start_charge,
+    problem = Extended_feas_problem(None, None, bus, chargers, grid_limit, start_charge=start_charge,
                                     final_charge=final_charge,
                                     deadhead=deadhead, resolution=RESOLUTION, min_charge_time=min_charge_time,
                                     reserve=reserve,
@@ -457,11 +456,10 @@ app.layout = html.Div(
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
             ]
         ),
-        dcc.Store(id="route-names-store", storage_type="memory"),
         dcc.Store(id="agency-store", storage_type="memory"),
         dcc.Store(id="bus-store", data=dict(), storage_type="memory"),
         dcc.Store(id="ec-store", data=dict(), storage_type="memory"),
-        dcc.Store(id="init-results-store", data=dict(), storage_type="memory"),
+        # dcc.Store(id="init-results-store", data=dict(), storage_type="memory"),
         dcc.Store(id="route-summary-store", data=dict(), storage_type="memory"),
         dcc.Download(id="download-dataframe-csv")
     ],
@@ -497,8 +495,7 @@ def get_agency_selection_form(gtfs_name):
 
 
 @app.callback(
-    [Output("route-selection-form", "children"),
-     Output("route-names-store", "data")],
+    Output("route-selection-form", "children"),
     Input("agency-selector", "value"),
     [State("agency-store", "data")],
     prevent_initial_callbacks=True,
@@ -524,9 +521,8 @@ def get_route_selection_form(agency_name, route_agency_dict):
                            dbp.Button(id="route-selector-confirm", children="Next"),
                        ]
                    ),
-               ], route_names
-    else:
-        return (None, None)
+               ]
+
 
 
 @app.callback(
@@ -550,11 +546,15 @@ def get_route_options_form(n_clicks, routes_sel, advanced_options):
 @app.callback(
     Output("route-selector", "value"),
     [Input("route-selector-all", "n_clicks")],
-    [State("route-names-store", "data")],
+    # [State("route-names-store", "data")],
+    [State("agency-store", "data"), State("agency-selector", "value")],
     prevent_initial_callback=True,
 )
-def select_all_routes(n_clicks, route_names):
+def select_all_routes(n_clicks, route_agency_dict, agency_name):
     if n_clicks:
+        route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
+        tmp = route_agency_df[route_agency_df["agency_name"] == agency_name]
+        route_names = tmp['route_short_name'].unique().tolist()
         options = [{"value": item, "label": item} for item in route_names]
         return [option["value"] for option in options]
 
@@ -640,12 +640,10 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
             deadhead_percent / 100,
             RESOLUTION,
             ec_total)
-        ec_dict = {"ec_km": ec_km,
-                   "ec_total": ec_total,
-                   "times": times,
+        ec_dict = {"depart_trip_energy_req": depart_trip_energy_req,
+                   "return_trip_energy_cons": return_trip_energy_cons,
                    "buses_in_traffic": buses_in_traffic,
-                   "depart_trip_energy_req": depart_trip_energy_req,
-                   "return_trip_energy_cons": return_trip_energy_cons}
+                   "times": times}
 
         ## calculate energy requirement over duration of trips
         route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
