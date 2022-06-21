@@ -18,7 +18,7 @@ install_requires = [
     'partridge>=1.1',
     'tqdm~=4.64',
     'geopandas~=0.10',
-    'inflection~=0.5'
+    'inflection~=0.5',
     'flask-caching==1.10.1'
 ]
 
