@@ -229,14 +229,14 @@ def read_shp_file(gtfs_name):
     return gpd.read_file(path)
 
 
-def create_routes_map_figure(gtfs_name, map_title, ec_km, subset_trip_data):
+def create_routes_map_figure(gtfs_name, map_title, route_summaries, window):
     gdf = read_shp_file(gtfs_name)
 
     from RouteZero.map import create_map
 
     colorbar_str = 'energy per km'
-    m = create_map(trips_data=subset_trip_data, shapes=gdf, value=ec_km, map_title=map_title,
-                   colorbar_str=colorbar_str)
+    m = create_map(route_summaries=route_summaries, shapes=gdf, map_title=map_title,
+                   colorbar_str=colorbar_str, window=window)
 
     return m._repr_html_()
 
@@ -452,7 +452,8 @@ app.layout = html.Div(
         dcc.Store(id="bus-store", data=dict(), storage_type="memory"),
         dcc.Store(id="ec-store", data=dict(), storage_type="memory"),
         dcc.Store(id="init-results-store", data=dict(), storage_type="memory"),
-        dcc.Store(id="route-summary-store", data=dict(), storage_type="memory")
+        dcc.Store(id="route-summary-store", data=dict(), storage_type="memory"),
+        dcc.Download(id="download-dataframe-csv")
     ],
 
 )
@@ -595,7 +596,7 @@ def show_bus_options_form(advanced_options):
 
 
 @app.callback(
-    [Output("results-route-map", "children"),
+    [
      Output("results-bus-number", "children"),
      Output("bus-store", "data"),
      Output("ec-store", "data"),
@@ -609,7 +610,7 @@ def show_bus_options_form(advanced_options):
      State("deadhead", "value"), State("agency-selector", "value")],
     prevent_initial_callbacks=True
 )
-def show_route_results(n_clicks, max_passengers, bat_capacity, charging_power,
+def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
                        gross_mass, charging_eff, eol_capacity, gtfs_name, routes_sel,
                        peak_passengers, deadhead_percent, agency_name):
     if n_clicks:
@@ -636,20 +637,78 @@ def show_route_results(n_clicks, max_passengers, bat_capacity, charging_power,
                    "depart_trip_energy_req": depart_trip_energy_req,
                    "return_trip_energy_cons": return_trip_energy_cons}
 
-        map_title = "Route Energy Consumption"
-        map_html = create_routes_map_figure(gtfs_name, map_title, ec_km, subset_trip_data)
-
         ## calculate energy requirement over duration of trips
         route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
 
-        return (html.Center(html.Div(
-            children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="750vh")
-        )),
-                create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
+        window_options = create_window_options(route_summaries['hour window'].unique().tolist())
+        # html.P("Time window:    ", style={"display":"inline-block","padding":10}),
+        return (
+        # html.Center(
+        #                     html.Div([
+        #                         html.P("Time window:    ",
+        #                                style={"display": "inline-block", "padding": 10}),
+        #                                 # dcc.Dropdown(window_options,
+        #                                 #              id='window-selector',
+        #                                 #              placeholder='Select time window',
+        #                                 #              style={'display':'inline-block','width':200}),
+        #                                 dbp.Select(items=window_options,
+        #                                            label=window_options[0]["label"],
+        #                                            value=window_options[0]["value"],
+        #                                         id="window-selector"),
+        #                                 html.Button('Download CSV', id="btn-ec-results")]
+        #         ), style={"height":100}),
+                [create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
+                 html.Center(
+                     html.Div([
+                         html.P("Time window:    ",
+                                style={"display": "inline-block", "padding": 10}),
+                         # dcc.Dropdown(window_options,
+                         #              id='window-selector',
+                         #              placeholder='Select time window',
+                         #              style={'display':'inline-block','width':200}),
+                         dbp.Select(items=window_options,
+                                    label=window_options[0]["label"],
+                                    value=window_options[0]["value"],
+                                    id="window-selector"),
+                         html.Button('Download CSV', id="btn-ec-results")]
+                     ), style={"height": 100}),
+                 ],
                 bus_dict, ec_dict, route_summaries.to_dict(orient='index'))
     else:
-        return (None, None, None, None, None)
+        return (None, None, None, None)
 
+def create_window_options(hour_windows):
+    sorted_windows =sorted(hour_windows, key=lambda x: x[0])
+    window_strings = ["{one:.1f} - {two:.1f}".format(one=x[0], two=x[1]) for x in sorted_windows]
+    return [{"value": item, "label": item} for item in window_strings]
+
+@app.callback(
+    Output("results-route-map", "children"),
+    Input("window-selector", "value"),
+    [State("route-summary-store", "data"), State("gtfs-selector", "value")],
+    prevent_initial_callback=True,
+)
+def show_energy_usage_map(window, route_summary_dict, gtfs_name):
+    if window is not None:
+        df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
+        map_title = "Route Energy Consumption "
+        map_html = create_routes_map_figure(gtfs_name, map_title, df, window=window)
+
+        return html.Center(html.Div(
+                                        children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="750vh")
+                                    ))
+
+@app.callback(
+   Output("download-dataframe-csv", "data"),
+    Input("btn-ec-results", "n_clicks"),
+    [State("route-summary-store", "data")],
+    prevent_initial_callback=True
+)
+def download_ec_results(n_clicks, route_summary_dict):
+    if n_clicks:
+        df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
+        df = df[['route_short_name','hour window', 'route_id', 'direction_id']+list(df.columns)[4:-1]]
+        return dcc.send_data_frame(df.to_csv, "route_energy_usage_summary.csv")
 
 @app.callback(
     Output("feas-optim-options-form", "children"),
