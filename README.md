@@ -96,22 +96,9 @@ Results can be exported to CSV
 
 
 ## deployment
-Need to have these dash settings
+run
 ```angular2html
-server = Flask(__name__)
-app = dash.Dash(
-__name__,
-server=server,
-suppress_callback_exceptions=True,
-compress=True,
-title="RouteZero",
-update_title=None,
-)
+gunicorn --workers=5 --threads=1 -b 0.0.0.0:8050 --timeout 600 app:server
 ```
 
-and then run
-
-```angular2html
-gunicorn --workers=5 --threads=1 -b 0.0.0.0:8050 app:server
-```
-
+nginx server time out https://ubiq.co/tech-blog/increase-request-timeout-nginx/
