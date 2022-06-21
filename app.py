@@ -5,11 +5,15 @@ import geopandas as gpd
 import plotly.colors as px_colors
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-import dash_blueprint as dbp
-from dash import Dash, html, dcc
-from dash.dependencies import Input, Output, State
 import numpy as np
 from flask import Flask
+
+# dash stuff
+import dash_blueprint as dbp
+# from dash import Dash, html, dcc
+# from dash.dependencies import Input, Output, State
+from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
+    ServersideOutputTransform
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -17,15 +21,15 @@ from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
-# app = Dash(__name__, suppress_callback_exceptions=True)
 server = Flask(__name__)
-app = Dash(
+app = DashProxy(
             __name__,
             server=server,
             suppress_callback_exceptions=True,
             compress=True,
             title="RouteZero",
             update_title=None,
+            transforms=[ServersideOutputTransform()]
         )
 
 app.scripts.config.serve_locally = True
@@ -469,7 +473,7 @@ app.layout = html.Div(
 
 @app.callback(
     [Output("agency-selection-form", "children"),
-     Output("agency-store", "data")],
+     ServersideOutput("agency-store", "data")],
     Input("gtfs-selector", "value"),
     prevent_initial_callback=True
 )
@@ -546,7 +550,6 @@ def get_route_options_form(n_clicks, routes_sel, advanced_options):
 @app.callback(
     Output("route-selector", "value"),
     [Input("route-selector-all", "n_clicks")],
-    # [State("route-names-store", "data")],
     [State("agency-store", "data"), State("agency-selector", "value")],
     prevent_initial_callback=True,
 )
@@ -608,9 +611,9 @@ def show_bus_options_form(advanced_options):
 @app.callback(
     [
      Output("results-bus-number", "children"),
-     Output("bus-store", "data"),
-     Output("ec-store", "data"),
-     Output("route-summary-store", "data")],
+     ServersideOutput("bus-store", "data"),
+     ServersideOutput("ec-store", "data"),
+     ServersideOutput("route-summary-store", "data")],
     [Input("confirm-bus-options", "n_clicks")],
     [State("max-passenger-count", "value"),
      State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
@@ -649,22 +652,7 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
         route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
 
         window_options = create_window_options(route_summaries['hour window'].unique().tolist())
-        # html.P("Time window:    ", style={"display":"inline-block","padding":10}),
         return (
-        # html.Center(
-        #                     html.Div([
-        #                         html.P("Time window:    ",
-        #                                style={"display": "inline-block", "padding": 10}),
-        #                                 # dcc.Dropdown(window_options,
-        #                                 #              id='window-selector',
-        #                                 #              placeholder='Select time window',
-        #                                 #              style={'display':'inline-block','width':200}),
-        #                                 dbp.Select(items=window_options,
-        #                                            label=window_options[0]["label"],
-        #                                            value=window_options[0]["value"],
-        #                                         id="window-selector"),
-        #                                 html.Button('Download CSV', id="btn-ec-results")]
-        #         ), style={"height":100}),
                 [create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
                  html.Center(
                      html.Div([
