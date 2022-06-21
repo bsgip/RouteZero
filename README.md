@@ -18,6 +18,7 @@ this will also require you to install jupyter packages and ipywidgets
 
 ```angular2html
 pip install dash
+pip install dash_extensions
 pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
 ```
 
