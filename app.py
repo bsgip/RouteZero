@@ -9,8 +9,10 @@ import numpy as np
 
 # dash stuff
 import dash_blueprint as dbp
-from dash import Dash, html, dcc
-from dash.dependencies import Input, Output, State
+# from dash import Dash, html, dcc
+# from dash.dependencies import Input, Output, State
+from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
+    ServersideOutputTransform
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -18,7 +20,7 @@ from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
-app = Dash(__name__, suppress_callback_exceptions=True)
+app = DashProxy(__name__, suppress_callback_exceptions=True, transforms=[ServersideOutputTransform()])
 
 app.scripts.config.serve_locally = True
 app.css.config.serve_locally = True
@@ -461,7 +463,7 @@ app.layout = html.Div(
 
 @app.callback(
     [Output("agency-selection-form", "children"),
-     Output("agency-store", "data")],
+     ServersideOutput("agency-store", "data")],
     Input("gtfs-selector", "value"),
     prevent_initial_callback=True
 )
@@ -493,7 +495,7 @@ def get_agency_selection_form(gtfs_name):
     prevent_initial_callbacks=True,
 )
 def get_route_selection_form(agency_name, route_agency_dict):
-    if (agency_name is not None) and (route_agency_dict is not None):
+    if agency_name is not None:
         route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
         tmp = route_agency_df[route_agency_df["agency_name"] == agency_name]
         route_names = tmp['route_short_name'].unique().tolist()
@@ -599,9 +601,9 @@ def show_bus_options_form(advanced_options):
 @app.callback(
     [
      Output("results-bus-number", "children"),
-     Output("bus-store", "data"),
-     Output("ec-store", "data"),
-     Output("route-summary-store", "data")],
+     ServersideOutput("bus-store", "data"),
+     ServersideOutput("ec-store", "data"),
+     ServersideOutput("route-summary-store", "data")],
     [Input("confirm-bus-options", "n_clicks")],
     [State("max-passenger-count", "value"),
      State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
