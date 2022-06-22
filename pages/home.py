@@ -423,7 +423,6 @@ def create_bus_options(advanced_options):
 layout = html.Div(
     className="grid-container",
     children=[
-        # html.Div(className="header", children=html.H1("RouteZero EBus energy consumption and depot charging model")),
         html.Div(
             className="sidenav",
             children=[
@@ -441,15 +440,13 @@ layout = html.Div(
                 html.Div(id="bus-information-form"),
                 html.Div(id="depot-options-form"),
                 html.Div(id="feas-optim-options-form"),
-                html.Div(id="hidden-div", style={"display": "none"}, children=None),
-                # html.Div(id="options-store",style={"display":"none"})
             ], style={'padding': 10, 'flex': 1}
         ),
         html.Div(
             className="main",
             children=[
                 dcc.Loading(html.Div(id="results-bus-number", children=None)),
-                html.Div(id="results-route-map", children=None),
+                dcc.Loading(html.Div(id="results-route-map", children=None)),
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
             ]
         ),
@@ -680,7 +677,7 @@ def create_window_options(hour_windows):
 def show_energy_usage_map(window, route_summary_dict, gtfs_name):
     if window is not None:
         df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
-        map_title = "Route Energy Consumption "
+        map_title = "Energy consumption of routes between " + window
         map_html = create_routes_map_figure(gtfs_name, map_title, df, window=window)
 
         return html.Center(html.Div(
