@@ -249,8 +249,8 @@ def create_routes_map_figure(gtfs_name, map_title, route_summaries, window):
 
 def create_route_options():
     return [
-        html.H3("Step 2) Predicting energy usage on routes"),
-        html.H4("Route options:"),
+        html.H5("Step 2) Predicting energy usage on routes"),
+        html.H6("Route options:"),
         dbp.FormGroup(
             label='deadhead (%)',
             inline=True,
@@ -275,7 +275,7 @@ def create_route_options():
 
 def create_feas_optim_options():
     return [
-        html.H4("Optimisation options:"),
+        html.H6("Optimisation options:"),
         dbp.FormGroup(
             label='Min plugin time (mins)',
             inline=True,
@@ -325,10 +325,10 @@ def create_feas_optim_options():
 
 def create_depot_options(advanced_options):
     return [
-        html.H3("Step 3) Optimise charging at depot"),
+        html.H5("Step 3) Optimise charging at depot"),
         html.P("Optimises the aggregate charging profile to find the minimum power rating"
                " for the depot grid connection and the minimum number of bus chargers required."),
-        html.H4("Depot options:"),
+        html.H6("Depot options:"),
         dbp.FormGroup(
             label='Max charger power (kW)',
             inline=True,
@@ -367,7 +367,7 @@ def create_depot_options(advanced_options):
 
 def create_bus_options(advanced_options):
     return [
-        html.H4("Bus options:"),
+        html.H6("Bus options:"),
         dbp.FormGroup(
             label="Max Passengers",
             inline=True,
@@ -427,8 +427,8 @@ layout = html.Div(
         html.Div(
             className="sidenav",
             children=[
-                html.H3("Step 1) Select gtfs source and routes"),
-                html.H4("Select data source:"),
+                html.H5("Step 1) Select gtfs source and routes"),
+                html.H6("Select data source:"),
                 dbp.FormGroup(
                     id="formgroup",
                     required=True,
@@ -479,7 +479,7 @@ def get_agency_selection_form(gtfs_name):
         return [
                    html.Div(
                        children=[
-                           html.H4("Select agency:"),
+                           html.H6("Select agency:"),
                            dbp.Select(id="agency-selector",
                                       items=[{"value": item, "label": item} for item in agency_names],
                                       ),
@@ -507,7 +507,7 @@ def get_route_selection_form(agency_name, route_agency_dict):
         return [
                    html.Div(
                        children=[
-                           html.H4("Select routes serviced by depot:"),
+                           html.H6("Select routes serviced by depot:"),
                            dcc.Dropdown(
                                id="route-selector",
                                options=[{"value": item, "label": item} for item in route_names],
