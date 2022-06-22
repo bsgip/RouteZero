@@ -53,6 +53,7 @@ def _append_trip_patronage(routes, trips, patronage):
     :return: trips dataframe with passenger information appended
     """
     patronage_df = pd.DataFrame.from_dict(patronage)
+    patronage_df = patronage_df.astype({'route_short_name':routes['route_short_name'].dtype,'passengers':'int64'})
     tmp_df = pd.merge(routes[['route_short_name','route_id','agency_name']],patronage_df, how='left')
     return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers','agency_name']])
 
@@ -251,9 +252,10 @@ def _elevation_from_shape(shapes):
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
+    inpath = '../data/gtfs/act.zip'
     # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    name = 'vic_interstate_gtfs'
-    inpath = '../data/gtfs/'+name+'.zip'
+    # name = 'vic_interstate_gtfs'
+    # inpath = '../data/gtfs/'+name+'.zip'
 
 
     route_short_names, route_desc = gtfs.read_route_desc_and_names(inpath)
@@ -270,7 +272,7 @@ if __name__=="__main__":
 
     patronage = {"route_short_name": route_short_names, "passengers":[38]*len(route_short_names)}
 
-    trip_summary = process(routes,trips, stop_times, stops,patronage)
+    trip_summary = process(routes,trips, stop_times, stops, patronage)
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)
 
 
@@ -281,12 +283,18 @@ if __name__=="__main__":
     plt.ylabel('# buses')
     plt.show()
     #
+    # trip_summary.to_csv('../data/gtfs/act/trip_data.csv')
+    # shapes.to_file('../data/gtfs/act/shapes.shp')
+
     # trip_summary.to_csv('../data/gtfs/leichhardt/trip_data.csv')
     # shapes.to_file('../data/gtfs/leichhardt/shapes.shp')
-    trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
-    shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
+    # trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
+    # shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
 
     #
     # from sklearn.metrics.pairwise import haversine_distances
     # r = 6371000
     # X = np.deg2rad(trip_summary[['start_loc_y','start_loc_x']].to_numpy())
+
+    geometry = shapes['geometry']
+    geometry[0].coords.xy

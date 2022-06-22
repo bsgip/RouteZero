@@ -89,6 +89,8 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
     gdf.crs = {'init': 'epsg:4326'}
 
     colorscale = branca.colormap.linear.YlGnBu_09.scale(min_val, max_val)
+    colorscale = branca.colormap.LinearColormap(colors=['red', 'lightblue'], index=[90, 100], vmin=min_val, vmax=max_val)
+    # branca.colormap.linear.
 
     def style_function(feature):
         return {

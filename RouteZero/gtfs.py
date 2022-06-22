@@ -24,7 +24,12 @@ def read_route_desc_and_names(inpath):
     """
     routes_all = _read_all_routes(inpath)
     if 'route_desc' in routes_all:
-        return routes_all['route_short_name'].unique().tolist(), routes_all['route_desc'].unique().tolist()
+        route_desc = routes_all['route_desc'].dropna()
+        if len(route_desc):
+            route_desc = route_desc.unique().tolist()
+        else:
+            route_desc = None
+        return routes_all['route_short_name'].unique().tolist(), route_desc
     else:
         return routes_all['route_short_name'].unique().tolist(), None
 
