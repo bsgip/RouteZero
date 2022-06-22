@@ -32,6 +32,10 @@ Public transport victoria:
     - https://discover.data.vic.gov.au/dataset/ptv-timetable-and-geographic-information-2015-gtfs
     - last updated 06/01/2022 
 
+ACT:
+    - https://www.transport.act.gov.au/contact-us/information-for-developers
+    - last updated 08/04/2022
+
 ## Design
 
 
@@ -95,3 +99,10 @@ Results can be exported to CSV
 
 
 
+## deployment
+run
+```angular2html
+gunicorn --workers=5 --threads=1 -b 0.0.0.0:8050 --timeout 600 app:server
+```
+
+nginx server time out https://ubiq.co/tech-blog/increase-request-timeout-nginx/

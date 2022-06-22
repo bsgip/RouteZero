@@ -57,16 +57,21 @@ def _create_gdf_of_value(route_summaries, shapes, window=None):
 
     inds = tmp.groupby(by=['shape_id','route_short_name','route_id','direction_id'])['ec/km (kwh/km)'].idxmax().values
     filtered=tmp.iloc[inds]
-
+    shape_ids = filtered['shape_id'].astype('str')
+    filtered['shape_id'] = filtered['shape_id'].astype('str')
 
     ## Prepare data for plotting on a map
-    gdf = gpd.GeoDataFrame(shapes[shapes['shape_id'].isin(filtered['shape_id'].unique().tolist())])
+    gdf = gpd.GeoDataFrame(shapes[shapes['shape_id'].isin(shape_ids.unique().tolist())])
     gdf = gdf.merge(filtered, how='left')
+
+    if 'length (m)' in gdf.columns:
+        gdf.drop(columns=['length (m)'], inplace=True)
 
     gdf.rename(columns={'average gradient (%)':'gradient (%)',
                         "average speed (km/h)":"speed (km/h)",
                         "possible max temp":"max temp",
-                        "possible min temp":"min temp"}, inplace=True)
+                        "possible min temp":"min temp",
+                        "trip distance (m)":"length (m)"}, inplace=True)
     gdf.dropna(inplace=True)
 
 
@@ -88,7 +93,8 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
                    tiles='cartodbpositron', zoom_start=10)
     gdf.crs = {'init': 'epsg:4326'}
 
-    colorscale = branca.colormap.linear.YlGnBu_09.scale(min_val, max_val)
+    # colorscale = branca.colormap.linear.YlGnBu_09.scale(min_val, max_val)
+    colorscale = branca.colormap.linear.viridis.scale(min_val, max_val)
 
     def style_function(feature):
         return {
@@ -104,7 +110,8 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
         geo_data,
         style_function=style_function,
         tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'ec/km (kwh/km)', 'gradient (%)',
-                                                       'stops/km', "speed (km/h)", "max temp", "min temp"],
+                                                       'stops/km', "speed (km/h)", "max temp", "min temp",
+                                                       'length (m)', 'ec (kwh)'],
                                                # aliases=tooltip_labels,
                                                labels=True,
                                                sticky=False)
@@ -142,9 +149,12 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 
-    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
+    trips_data = pd.read_csv('../data/gtfs/act/trip_data.csv')
     trips_data['passengers'] = 38
-    shapes = gpd.read_file('../data/gtfs/leichhardt/shapes.shp')
+
+    shape_ids = trips_data['shape_id'].astype('str')
+
+    shapes = gpd.read_file('../data/gtfs/act/shapes.shp')
     window = [5, 10]
     mode='max'
 

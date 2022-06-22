@@ -1,7 +1,11 @@
+from flask import Flask
 from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
     ServersideOutputTransform
 import dash
 import dash_bootstrap_components as dbc
+
+# backend = RedisStore()
+# backend = FileSystemStore(threshold=100)
 
 app = DashProxy(__name__, use_pages=True, suppress_callback_exceptions=True, transforms=[ServersideOutputTransform()],
                 external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -39,7 +43,6 @@ app.layout = html.Div(children=[
         dash.page_container
     )
 ])
-
 
 
 if __name__ == '__main__':
