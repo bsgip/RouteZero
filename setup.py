@@ -19,9 +19,10 @@ install_requires = [
     'tqdm~=4.64',
     'geopandas~=0.10',
     'inflection~=0.5',
-    'flask-caching==1.10.1',
-    'dash==2.4.1',
     'dash-extension==0.1.3'
+    'flask-caching==1.10.1'
+    'dash==2.5.0',
+    'dash-bootstrap-components==1.1.0'
 ]
 
 if sys.version_info < (3, 7):
