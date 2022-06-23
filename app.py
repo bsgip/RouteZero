@@ -7,8 +7,18 @@ import dash_bootstrap_components as dbc
 # backend = RedisStore()
 # backend = FileSystemStore(threshold=100)
 
-app = DashProxy(__name__, use_pages=True, suppress_callback_exceptions=True, transforms=[ServersideOutputTransform()],
-                external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = Flask(__name__)
+app = DashProxy(
+            __name__,
+            server=server,
+            suppress_callback_exceptions=True,
+            compress=True,
+            title="RouteZero",
+            update_title=None,
+            transforms=[ServersideOutputTransform()],
+            external_stylesheets=[dbc.themes.BOOTSTRAP],
+            use_pages=True)
+
 
 app.scripts.config.serve_locally = True
 app.css.config.serve_locally = True
