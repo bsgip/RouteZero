@@ -36,7 +36,7 @@ if sys.version_info < (3, 7):
 
 setuptools.setup(
     name="RouteZero",
-    version="0.0.15",
+    version="0.0.16",
     description="Electric bus energy usage prediction and depot charging feasibility. ",
     long_description=long_description,
     long_description_content_type="text/markdown",

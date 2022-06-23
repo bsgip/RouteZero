@@ -17,13 +17,13 @@ app.css.config.serve_locally = True
 navbar = dbc.Navbar(dbc.Container([
     dbc.Row(
       [
-        dbc.Col(html.Img(src='./assets/Zenobe-logo-Glow.png', height="30px"), style={"padding":5}),
-        dbc.Col(html.Img(src='./assets/BSGIP-logo.png', height="40px"), style={"padding":5}),
+        dbc.Col(html.Img(src='./assets/Zenobe-logo-Glow.png', height="35px"), style={"padding":5}),
+        dbc.Col(html.Img(src='./assets/BSGIP-logo.png', height="45px"), style={"padding":5}),
       ],
       align="center",
       className="g-0",
     ),
-    html.H1('RouteZero'),
+    dbc.Row(dbc.Col([html.H1('RouteZero (alpha)'),"ebus energy usage model / depot charging optimiser"])),
     dbc.Row(
         [dbc.Col(dbc.NavItem(dbc.NavLink(page['name'], href=page['relative_path']))) for page in dash.page_registry.values()],
         align="center",

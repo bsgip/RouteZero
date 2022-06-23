@@ -84,9 +84,11 @@ def read_busiest_week_data(inpath, route_short_names, route_desc, disp=True):
         if len(agency)==1:
             routes['agency_name'] = agency['agency_name'].to_list()[0]
         else:
+            agency['agency_id'] = agency['agency_id'].astype('int64')
+            routes['agency_id'] = routes['agency_id'].astype('int64')
             routes = pd.merge(routes, agency[['agency_id', 'agency_name']], how='left')
     except:
-        routes['agency'] = ""
+        routes['agency_name'] = ""
 
     return routes, trips, stops, stop_times, shapes
 

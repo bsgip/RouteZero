@@ -149,12 +149,12 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 
-    trips_data = pd.read_csv('../data/gtfs/act/trip_data.csv')
+    trips_data = pd.read_csv('../data/gtfs/adelaide/trip_data.csv')
     trips_data['passengers'] = 38
 
     shape_ids = trips_data['shape_id'].astype('str')
 
-    shapes = gpd.read_file('../data/gtfs/act/shapes.shp')
+    shapes = gpd.read_file('../data/gtfs/adelaide/shapes.shp')
     window = [5, 10]
     mode='max'
 
@@ -164,7 +164,7 @@ if __name__=="__main__":
 
     route_summaries = summarise_results(trips_data, ec_km, ec_total)
 
-    gdf = _create_gdf_of_value(route_summaries, shapes, window='0.0 - 6.0')
+    gdf = _create_gdf_of_value(route_summaries, shapes, window='6.0 - 9.5')
 
     map_title = "Route Energy Consumption"
     colorbar_str = 'energy per km'

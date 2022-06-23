@@ -36,6 +36,22 @@ ACT:
     - https://www.transport.act.gov.au/contact-us/information-for-developers
     - last updated 08/04/2022
 
+Tas:
+    - https://www.metrotas.com.au/community/gtfs/
+    - last updated 18/05/2022
+
+Northern Territory
+    - https://dipl.nt.gov.au/data/bus-timetable-data-and-geographic-information
+    - last updated 23/04/2022
+
+Western Australia
+    - https://www.transperth.wa.gov.au/About/Spatial-Data-Access
+    - last updated 23/06/2022
+
+South Australia
+    - https://data.sa.gov.au/data/dataset/https-gtfs-adelaidemetro-com-au
+    - last updated 30/10/2022
+
 ## Design
 
 
