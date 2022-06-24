@@ -23,6 +23,7 @@ install_requires = [
     'dash-extensions',
     'flask-caching==1.10.1',
     'dash-bootstrap-components==1.1.0',
+    'scikit-learn==1.1.1'
 ]
 
 if sys.version_info < (3, 7):

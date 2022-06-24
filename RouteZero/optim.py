@@ -77,8 +77,8 @@ class base_problem():
         opt = SolverFactory('cbc')
         status = opt.solve(model)
 
-        if model.reserve_slack.value > 0:
-            print('Reserve not achieved')
+        # if model.reserve_slack.value > 0:
+        #     print('Reserve not achieved')
 
         x_array = self.get_array('x')
 
@@ -102,8 +102,8 @@ class base_problem():
 
         infeasibilty = np.max(np.abs(np.minimum(0, energy_available)))
 
-        if infeasibilty > 0:
-            print('charging not feasible')
+        # if infeasibilty > 0:
+        #     print('charging not feasible')
 
         self.chargers['number'] = self.get_array('Nc')
 
@@ -127,8 +127,17 @@ class base_problem():
                    "battery_soc_delta": bv_array,
                    "battery_spec":self.battery,
                    "times":self.times,
+                   "reserve":self.reserve,
                    "reserve_energy":self.reserve_energy,
-                   "max_cap":self.max_energy}
+                   "max_cap":self.max_energy,
+                   "num_buses":self.num_buses,
+                   "start_charge":self.start_charge,
+                   "final_charge":self.final_charge,
+                   "deadhead":self.deadhead,
+                   "min_charge_time":self.min_charge_time,
+                   "bus":{'capacity':self.bus.battery_capacity, "max_charging":self.bus.charging_rate,
+                                 'max_passengers':self.bus.max_passengers, "gross_mass":self.bus.gross_mass,
+                                 'end_of_life_cap':self.bus.end_of_life_cap, "efficiency":self.bus_eta}}
 
         return results
 

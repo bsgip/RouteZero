@@ -9,11 +9,10 @@ import numpy as np
 
 # dash stuff
 import dash_blueprint as dbp
-# from dash import Dash, html, dcc
-# from dash.dependencies import Input, Output, State
 from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
     ServersideOutputTransform, callback
 import dash
+import dash_bootstrap_components as dbc
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -132,6 +131,79 @@ def run_init_feasibility(options_dict, ec_dict):
     chargers_in_use = determine_charger_use(chargers, problem.Nt_avail, results["charging_power"], problem.windows)
     results['chargers_in_use'] = chargers_in_use
     return results
+
+def display_optim_summary(results):
+    setup_summary = """ 
+    ###### Setup summary:
+    - Trip deadhead (additional time and energy between trips): {deadhead}%
+    - {bus_num} buses were used with:
+        - battery capacity: {bus_bat_cap}kWh
+        - max charging rate: {bus_charge}kW
+        - max passengers: {max_pass}
+        - gross mass: {gross_mass}kg
+        - efficiency: {bus_eta}%
+        - end of life capacity: {bus_eol}%
+    - Depot charger power: {charger_power:.1f}kw 
+    - Depot onsite battery with:
+        - capacity: {depot_bat_cap:.1f}kWh
+        - power rating: {depot_bat_power:.1f}kW
+        - effiency: {depot_bat_eta}%
+    - Optimisation options:
+        - sum bus battery start of week charge: {start_charge}%
+        - required bus battery end of week charge: {final_charge}%
+        - Minimum time allowed to plug in a bus: {min_charge_time}mins
+        - Desired reserve sum bus battery capacity: {reserve}%
+    """.format(bus_num=results['num_buses'],
+               bus_bat_cap=results['bus']['capacity'],
+               bus_charge=results['bus']['max_charging'],
+               max_pass=results['bus']['max_passengers'],
+               gross_mass=results['bus']['gross_mass'],
+               bus_eol=results['bus']['end_of_life_cap']*100,
+               bus_eta=results['bus']['efficiency']*100,
+               charger_power=results['chargers']['power'][0],
+               depot_bat_cap=results["battery_spec"]['capacity'],
+               depot_bat_power=results["battery_spec"]["power"],
+               depot_bat_eta=results["battery_spec"]["efficiency"]*100,
+               start_charge=results["start_charge"]*100,
+               final_charge=results['final_charge']*100,
+               min_charge_time=results["min_charge_time"],
+               reserve=results['reserve']*100,
+               deadhead=results["deadhead"]*100
+               )
+
+    results_summary = """
+    ###### Analysis results summary
+    - Required grid connection: {grid_con:.1f}kW 
+    - {num_chargers} chargers of {charger_power}kW required to be shared by the {num_buses} buses
+    """.format(grid_con=results['grid_limit'],
+               num_chargers=int(results['chargers']['number'][0]),
+               charger_power=int(results['chargers']['power'][0]),
+               num_buses=results['num_buses'])
+
+    # header_text = dbc.Row(html.H5("Depot charging analysis summary:"))
+    # bus_text = dbc.Row(dbc.Col("{} buses were used for the analysis.".format(results['num_buses'])))
+    # charger_text = dbc.Row(dbc.Col("""
+    # Analysis determined {} chargers of {}kW are required to be shared amongst the {} buses.
+    # """.format(int(results['chargers']['number'][0]), results['chargers']['power'][0], int(results['num_buses']))
+    # ))
+    # if results['infeasibility_%'] > 0.0:
+    #     sol_text = dbc.Row(dbc.Col("No charging solution found - Failed by {:.1f}% capacity".format(results['infeasibility_%'])))
+    # elif results["reserve_infease_%"] > 0.0:
+    #     sol_text = dbc.Row(dbc.Col("Failed to achieve chosen reserve by {:.1f}%".format(results["reserve_infease_%"])))
+    # else:
+    #     sol_text = dbc.Row(dbc.Col("Successful charging solution found"))
+    ## todo: was the charging sucessful
+
+    return [dbc.Row("",style={"height":"5rem"}),
+            dcc.Markdown(setup_summary),
+            dcc.Markdown(results_summary)
+            ]
+    # return [dbc.Row("",style={"height":"5rem"}),
+    #         header_text,
+    #         sol_text,
+    #         bus_text,
+    #         charger_text,
+    #         ]
 
 
 def create_optim_results_plot(results):
@@ -740,7 +812,17 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
                         "battery": battery,
                         "bus_dict": bus_dict}
         results = run_init_feasibility(options_dict, ec_dict)
-        return html.Center(create_optim_results_plot(results))
+
+        out = dbc.Container(dbc.Row([
+            dbc.Col(display_optim_summary(results), width={"size":3, "offset":1}),
+            dbc.Col(create_optim_results_plot(results), width=6),
+        ]),fluid=True)
+        # out = html.Center(html.Div(children=[
+        #     display_optim_summary(results),
+        #     create_optim_results_plot(results)
+        # ]))
+        return out
+        # return html.Center(create_optim_results_plot(results))
     else:
         return None
 
