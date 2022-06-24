@@ -9,11 +9,10 @@ import numpy as np
 
 # dash stuff
 import dash_blueprint as dbp
-# from dash import Dash, html, dcc
-# from dash.dependencies import Input, Output, State
 from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
     ServersideOutputTransform, callback
 import dash
+import dash_bootstrap_components as dbc
 
 from RouteZero import route
 import RouteZero.bus as ebus
@@ -109,7 +108,7 @@ def create_options_dict():
                 )
 
 
-def run_init_feasibility(options_dict, ec_dict):
+def run_init_feasibility(options_dict, ec_dict, num_buses):
     grid_limit = "optim"
     deadhead = options_dict["deadhead"]
     min_charge_time = options_dict["min_charge_time"]
@@ -122,7 +121,7 @@ def run_init_feasibility(options_dict, ec_dict):
     problem = Extended_feas_problem(None, None, bus, chargers, grid_limit, start_charge=start_charge,
                                     final_charge=final_charge,
                                     deadhead=deadhead, resolution=RESOLUTION, min_charge_time=min_charge_time,
-                                    reserve=reserve,
+                                    reserve=reserve, num_buses=num_buses,
                                     battery=battery, ec_dict=ec_dict)
 
     results = problem.solve()
@@ -132,6 +131,105 @@ def run_init_feasibility(options_dict, ec_dict):
     chargers_in_use = determine_charger_use(chargers, problem.Nt_avail, results["charging_power"], problem.windows)
     results['chargers_in_use'] = chargers_in_use
     return results
+
+def display_init_summary(init_results):
+    text = """
+    ###### Route energy usage analysis results
+    - Data source is the publicly available {gtfs_name} GTFS data. From this the busiest week has been extracted for analysis.
+    - {num_routes} routes have been selected.
+    - The 'Buses on route' graph shows how many buses are active on these routes throughout the week.
+    - From this we can see a minimum of {num_buses} buses are required for the subsequent analysis.
+    - The energy requirement for these routes has been predicted using a data-driven model and considering:
+        - worst case temperatures at the location throughout the year,
+        - worst case loading (all trips have peak loading),
+        - energy requirements change throughout the day due to different traffic conditions and temperature.
+    - The max energy required on a single route is {max_energy:.1f}kWh and the average energy required is {av_energy:.1f}kWh{bus_cap}.
+    - The predicted total energy required on active routes is shown in the right hand graph.
+    - The map shows the energy requirements of specific routes during the selected time window. 
+    """.format(gtfs_name=' '.join(elem.capitalize() for elem in init_results['gtfs_name'].replace("_"," ").split()),
+               num_routes=init_results["num_routes"],
+               num_buses=init_results['num_buses'],
+               max_energy=init_results['max_energy'],
+               av_energy=init_results['av_energy'],
+               bus_cap='' if init_results['bus_eol_capacity']>init_results['max_energy'] else ". **This is greater than the end of life bus battery capacity. Increase the bus battery capacity before proceeding**")
+
+    return dcc.Markdown(text)
+
+
+def display_optim_summary(results):
+    setup_summary = """ 
+    ###### Setup summary:
+    - Trip deadhead (additional time and energy between trips): {deadhead}%
+    - Peak number of passengers considered on routes: {peak_passengers}
+    - {bus_num} buses were used with:
+        - battery capacity: {bus_bat_cap}kWh
+        - max charging rate: {bus_charge}kW
+        - max passengers: {max_pass}
+        - gross mass: {gross_mass}kg
+        - efficiency: {bus_eta}%
+        - end of life capacity: {bus_eol}%
+    - Depot charger power: {charger_power:.1f}kw 
+    - Depot onsite battery with:
+        - capacity: {depot_bat_cap:.1f}kWh
+        - power rating: {depot_bat_power:.1f}kW
+        - effiency: {depot_bat_eta}%
+    - Optimisation options:
+        - sum bus battery start of week charge: {start_charge}%
+        - required bus battery end of week charge: {final_charge}%
+        - Minimum time allowed to plug in a bus: {min_charge_time}mins
+        - Desired reserve sum bus battery capacity: {reserve}%
+    """.format(bus_num=results['num_buses'],
+               bus_bat_cap=results['bus']['capacity'],
+               bus_charge=results['bus']['max_charging'],
+               max_pass=results['bus']['max_passengers'],
+               gross_mass=results['bus']['gross_mass'],
+               bus_eol=results['bus']['end_of_life_cap']*100,
+               bus_eta=results['bus']['efficiency']*100,
+               charger_power=results['chargers']['power'][0],
+               depot_bat_cap=results["battery_spec"]['capacity'],
+               depot_bat_power=results["battery_spec"]["power"],
+               depot_bat_eta=results["battery_spec"]["efficiency"]*100,
+               start_charge=results["start_charge"]*100,
+               final_charge=results['final_charge']*100,
+               min_charge_time=results["min_charge_time"],
+               reserve=results['reserve']*100,
+               deadhead=results["deadhead"]*100,
+               peak_passengers=results["peak_passengers"]
+               )
+
+    try_text = "Try increasing the 'max charging power'/'bus battery capacity'/'number of buses'"
+
+    results_summary = """
+    ###### Depot charging analysis summary
+    - The depot could {sol_text}sufficiently charge the buses {failed_sol}
+    - Desired reserve capacity of {reserve}% was {reserve_text} achieved{failed_reserve} 
+    - Desired end of week charge of {final_charge}% was {final_text}achieved{failed_final}
+    - Required grid connection: {grid_con:.1f}kW 
+    - {num_chargers} chargers of {charger_power}kW required to be shared by the {num_buses} buses
+    """.format(grid_con=results['grid_limit'],
+               num_chargers=int(results['chargers']['number'][0]),
+               charger_power=int(results['chargers']['power'][0]),
+               num_buses=results['num_buses'],
+               sol_text='' if results['infeasibility_%'] < 0.01 else 'not ',
+               reserve_text='not' if results['reserve_infease_%'] > 0.01 else '',
+               reserve=results["reserve"]*100,
+               final_charge=results['final_charge']*100,
+               failed_sol='' if results['infeasibility_%'] < 0.01 else '. Failed by {:.1f}%. '.format(results['infeasibility_%']) +try_text,
+               failed_reserve='' if results['reserve_infease_%'] < 0.01 else '. Failed by {:.1f}%. '.format(results['reserve_infease_%']) +try_text,
+               final_text='' if results['final_soc_infeas_%'] < 0.01 else 'not ',
+               failed_final='' if results['final_soc_infeas_%'] < 0.01 else '. Failed by {:.1f}%. '.format(results['final_soc_infeas_%']) +try_text,
+               )
+
+    return [dbc.Row("",style={"height":"5rem"}),
+            dcc.Markdown(results_summary),
+            dcc.Markdown(setup_summary),
+            ]
+    # return [dbc.Row("",style={"height":"5rem"}),
+    #         header_text,
+    #         sol_text,
+    #         bus_text,
+    #         charger_text,
+    #         ]
 
 
 def create_optim_results_plot(results):
@@ -150,7 +248,9 @@ def create_optim_results_plot(results):
             "aggregate power": aggregate_power}
     df = pd.DataFrame(data)
 
-    fig = make_subplots(rows=4, cols=1)
+    fig = make_subplots(rows=4, cols=1,
+                        subplot_titles=['Charging power', 'Sum state of charge',
+                                        'Daily energy use and charging', 'Chargers in use'])
 
     fig.add_trace(
         go.Scatter(x=times, y=charging_power, name="sum bus charging", legendgroup='1'),
@@ -200,7 +300,7 @@ def create_optim_results_plot(results):
         yaxis_title='Power (kW)',
         height=1066,  # 800/3*4,
         width=800,
-        legend_tracegroupgap=190,
+        legend_tracegroupgap=200,
         xaxis2=dict(
             tickformat="digit",
             tickmode='linear',
@@ -215,7 +315,7 @@ def create_optim_results_plot(results):
             tick0=0,
             dtick=6
         ),
-        yaxis4_title='Number'
+        yaxis4_title='Number',
     )
 
     return dcc.Graph(id="charging-graph", figure=fig)
@@ -267,7 +367,7 @@ def create_route_options():
             label='Peak passengers',
             inline=True,
             children=dbp.NumericInput(
-                id="peak-passengers", value=DEFAULT_PEAK_PASSENGER, stepSize=1
+                id="peak-passengers", value=DEFAULT_PEAK_PASSENGER, stepSize=1, min=0
             )
         ),
     ]
@@ -280,7 +380,7 @@ def create_feas_optim_options():
             label='Min plugin time (mins)',
             inline=True,
             children=dbp.NumericInput(
-                id='min-charge-time', value=DEFAULT_MIN_CHARGE_TIME, stepSize=1
+                id='min-charge-time', value=DEFAULT_MIN_CHARGE_TIME, stepSize=1,min=0
             )
         ),
         dbp.FormGroup(
@@ -323,7 +423,9 @@ def create_feas_optim_options():
     ]
 
 
-def create_depot_options(advanced_options):
+def create_depot_options(advanced_options, ec_dict):
+    min_buses = int(ec_dict['buses_in_traffic'].max())
+    max_buses = int(max(1.2 * min_buses, min_buses+5))
     return [
         html.H5("Step 3) Optimise charging at depot"),
         html.P("Optimises the aggregate charging profile to find the minimum power rating"
@@ -333,26 +435,38 @@ def create_depot_options(advanced_options):
             label='Max charger power (kW)',
             inline=True,
             children=dbp.NumericInput(
-                id="charger-power", value=DEFAULT_CHARGER_POWER, stepSize=1
+                id="charger-power", value=DEFAULT_CHARGER_POWER, stepSize=1, min=0
             )
         ),
         dbp.FormGroup(
-            label='Battery capacity (kWh)',
+            label='On-site battery \n capacity (kWh)',
+            inline=True,
+            children=[dbp.NumericInput(
+                id="depot-battery-capacity", value=0, stepSize=1, min=0
+            )]
+        ),
+        dbp.FormGroup(
+            label='On-site battery power (kW)',
             inline=True,
             children=dbp.NumericInput(
-                id="depot-battery-capacity", value=0, stepSize=1
+                id="depot-battery-power", value=0, stepSize=1, min=0
             )
         ),
         dbp.FormGroup(
-            label='Battery power (kW)',
+            label='Number of buses',
             inline=True,
-            children=dbp.NumericInput(
-                id="depot-battery-power", value=0, stepSize=1
+            children=dbp.Slider(
+                id="num-buses-slider",
+                value=min_buses,
+                min=min_buses,
+                max=max_buses,
+                stepSize=1,
+                labelStepSize=int(np.floor((max_buses-min_buses)/2))
             )
         ),
         html.Div(children=[
             dbp.FormGroup(
-                label='Battery efficiency',
+                label='On-site battery efficiency',
                 inline=True,
                 children=dbp.Slider(
                     id="depot-battery-eff",
@@ -372,28 +486,28 @@ def create_bus_options(advanced_options):
             label="Max Passengers",
             inline=True,
             children=dbp.NumericInput(
-                id="max-passenger-count", value=70, stepSize=1
+                id="max-passenger-count", value=70, stepSize=1, min=0
             ),
         ),
         dbp.FormGroup(
             label="Battery capacity (kWh)",
             inline=True,
             children=dbp.NumericInput(
-                id="battery-capacity-kwh", value=400, stepSize=1
+                id="battery-capacity-kwh", value=400, stepSize=1, min=0
             ),
         ),
         dbp.FormGroup(
             label="Charging power (kW)",
             inline=True,
             children=dbp.NumericInput(
-                id="charging-capacity-kw", value=300, stepSize=1
+                id="charging-capacity-kw", value=300, stepSize=1, min=0
             ),
         ),
         dbp.FormGroup(
             label="Gross mass (kg)",
             inline=True,
             children=dbp.NumericInput(
-                id="gross-mass-kg", value=18000, stepSize=1
+                id="gross-mass-kg", value=18000, stepSize=1, min=0
             ),
         ),
         html.Div(children=[
@@ -554,9 +668,18 @@ def select_all_routes(n_clicks, route_agency_dict, agency_name):
 
 def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
     times = times / 60
+    if times[-1] < 168:
+        times = np.hstack([times, np.array([times[-1]+0.01, 168])])
+        buses_in_traffic = np.hstack([buses_in_traffic, np.array([0.0, 0.0])])
+        energy_req = np.hstack([energy_req, np.array([0.0, 0.0])])
+    if times[0] > 0:
+        times = np.hstack([np.array([0, times[0]-0.01], times)])
+        buses_in_traffic = np.hstack([np.array([0.0, 0.0]), buses_in_traffic])
+        energy_req = np.hstack([np.array([0.0, 0.0]), energy_req])
+
     fig = make_subplots(rows=1, cols=2,
                         subplot_titles=['buses on route',
-                                        'Total energy usage on routes'])
+                                        'Total energy required on active routes'])
 
     cols = px_colors.DEFAULT_PLOTLY_COLORS
     fig.add_trace(
@@ -575,7 +698,8 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
             tickmode='linear',
             tick0=0,
             dtick=6,
-            title='Hour of week'
+            title='Hour of week',
+            range=[0,168]
         ),
         yaxis=dict(title='# buses'),
         xaxis2=dict(
@@ -583,7 +707,8 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
             tickmode='linear',
             tick0=0,
             dtick=6,
-            title='Hour of week'
+            title='Hour of week',
+            range=[0, 168]
         ),
         yaxis2=dict(title='Energy (kWh)'),
         showlegend=False
@@ -642,8 +767,17 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
         route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
 
         window_options = create_window_options(route_summaries['hour window'].unique().tolist())
+
+        init_results = {"gtfs_name":gtfs_name,
+                        "num_routes":len(route_summaries['route_short_name'].unique()),
+                        "num_buses":int(buses_in_traffic.max()),
+                        "max_energy":ec_total.max(),
+                        "av_energy":ec_total.mean(),
+                        "bus_eol_capacity":bus.usable_capacity}
+
         return (
-                [create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
+                [dbc.Container([dbc.Row(display_init_summary(init_results)),
+                                dbc.Row(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage))]),
                  html.Center(
                      html.Div([
                          html.P("Time window for map results:    ",
@@ -681,7 +815,7 @@ def show_energy_usage_map(window, route_summary_dict, gtfs_name):
         map_html = create_routes_map_figure(gtfs_name, map_title, df, window=window)
 
         return html.Center(html.Div(
-                                        children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="750vh")
+                                        children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="850vh")
                                     ))
 
 @callback(
@@ -698,15 +832,16 @@ def download_ec_results(n_clicks, route_summary_dict):
 
 @callback(
     Output("feas-optim-options-form", "children"),
-    [Input("confirm-bus-options", "n_clicks")],
-    [State("advanced-options-checkbox", "checked")],
+    # [Input("confirm-bus-options", "n_clicks")],
+    Input("window-selector", "value"),
+    [State("advanced-options-checkbox", "checked"), State("ec-store", "data")],
     prevent_initial_callbacks=True
 )
-def show_init_optim_options_form(n_clicks, advanced_options):
+def show_init_optim_options_form(n_clicks, advanced_options, ec_dict):
     if n_clicks:
         return [
             html.Div(
-                id="depot-information-form", children=create_depot_options(advanced_options)
+                id="depot-information-form", children=create_depot_options(advanced_options, ec_dict)
             ),
             html.Div(
                 id="feas-optim-form", children=create_feas_optim_options()
@@ -722,12 +857,14 @@ def show_init_optim_options_form(n_clicks, advanced_options):
      State("min-charge-time", "value"), State("start-charge", "value"),
      State("final-charge", "value"), State("reserve-capacity", "value"),
      State("deadhead", "value"), State("bus-store", "data"),
-     State("ec-store", "data")],
+     State("ec-store", "data"), State("peak-passengers", "value"),
+     State("num-buses-slider", "value")],
     prevent_initial_callbacks=True
 )
 def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_power,
                             depot_bat_eff, min_charge_time, start_charge, final_charge,
-                            reserve_capacity, deadhead_percent, bus_dict, ec_dict):
+                            reserve_capacity, deadhead_percent, bus_dict, ec_dict,
+                            peak_passengers, num_buses):
     if n_clicks:
         battery = AppData.battery_dict(depot_bat_cap, depot_bat_power, depot_bat_eff)
         chargers = {"power": charger_power, "number": "optim", "cost": 10}
@@ -739,8 +876,14 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
                         "chargers": chargers,
                         "battery": battery,
                         "bus_dict": bus_dict}
-        results = run_init_feasibility(options_dict, ec_dict)
-        return html.Center(create_optim_results_plot(results))
+        results = run_init_feasibility(options_dict, ec_dict, num_buses)
+        results['peak_passengers'] = peak_passengers
+        out = dbc.Container(dbc.Row([
+            dbc.Col(display_optim_summary(results), width={"size":3, "offset":1}),
+            dbc.Col(create_optim_results_plot(results), width=6),
+        ]),fluid=True)
+        return out
+        # return html.Center(create_optim_results_plot(results))
     else:
         return None
 
