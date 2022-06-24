@@ -142,6 +142,7 @@ def display_init_summary(init_results):
     - The energy requirement for these routes has been predicted using a data-driven model and considering:
         - worst case temperatures at the location throughout the year,
         - worst case loading (all trips have peak loading),
+        - the time and energy requirements have been increased by the deadhead factor,
         - energy requirements change throughout the day due to different traffic conditions and temperature.
     - The max energy required on a single route is {max_energy:.1f}kWh and the average energy required is {av_energy:.1f}kWh{bus_cap}.
     - The predicted total energy required on active routes is shown in the right hand graph.
