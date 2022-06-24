@@ -132,6 +132,30 @@ def run_init_feasibility(options_dict, ec_dict, num_buses):
     results['chargers_in_use'] = chargers_in_use
     return results
 
+def display_init_summary(init_results):
+    text = """
+    ###### Route energy usage analysis results
+    - Data source is the publicly available {gtfs_name} GTFS data. From this the busiest week has been extracted for analysis.
+    - {num_routes} routes have been selected.
+    - The 'Buses on route' graph shows how many buses are active on these routes throughout the week.
+    - From this we can see a minimum of {num_buses} buses are required for the subsequent analysis.
+    - The energy requirement for these routes has been predicted using a data-driven model and considering:
+        - worst case temperatures at the location throughout the year,
+        - worst case loading (all trips have peak loading),
+        - energy requirements change throughout the day due to different traffic conditions and temperature.
+    - The max energy required on a single route is {max_energy:.1f}kWh and the average energy required is {av_energy:.1f}kWh{bus_cap}.
+    - The predicted total energy required on active routes is shown in the right hand graph.
+    - The map shows the energy requirements of specific routes during the selected time window. 
+    """.format(gtfs_name=' '.join(elem.capitalize() for elem in init_results['gtfs_name'].replace("_"," ").split()),
+               num_routes=init_results["num_routes"],
+               num_buses=init_results['num_buses'],
+               max_energy=init_results['max_energy'],
+               av_energy=init_results['av_energy'],
+               bus_cap='' if init_results['bus_eol_capacity']>init_results['max_energy'] else ". **This is greater than the end of life bus battery capacity. Increase the bus battery capacity before proceeding**")
+
+    return dcc.Markdown(text)
+
+
 def display_optim_summary(results):
     setup_summary = """ 
     ###### Setup summary:
@@ -173,13 +197,13 @@ def display_optim_summary(results):
                peak_passengers=results["peak_passengers"]
                )
 
-    try_text = "try increasing the 'max charging power'/'bus battery capacity'/'number of buses'"
+    try_text = "Try increasing the 'max charging power'/'bus battery capacity'/'number of buses'"
 
     results_summary = """
-    ###### Analysis results summary
+    ###### Depot charging analysis summary
     - The depot could {sol_text}sufficiently charge the buses {failed_sol}
     - Desired reserve capacity of {reserve}% was {reserve_text} achieved{failed_reserve} 
-    - Desired end of week charge of {final_charge}% was achieved
+    - Desired end of week charge of {final_charge}% was {final_text}achieved{failed_final}
     - Required grid connection: {grid_con:.1f}kW 
     - {num_chargers} chargers of {charger_power}kW required to be shared by the {num_buses} buses
     """.format(grid_con=results['grid_limit'],
@@ -190,8 +214,10 @@ def display_optim_summary(results):
                reserve_text='not' if results['reserve_infease_%'] > 0.01 else '',
                reserve=results["reserve"]*100,
                final_charge=results['final_charge']*100,
-               failed_sol='' if results['infeasibility_%'] < 0.01 else '. failed by {:.1f}%. '.format(results['infeasibility_%']) +try_text,
-               failed_reserve='' if results['reserve_infease_%'] < 0.01 else '. failed by {:.1f}. %'.format(results['reserve_infease_%']) +try_text,
+               failed_sol='' if results['infeasibility_%'] < 0.01 else '. Failed by {:.1f}%. '.format(results['infeasibility_%']) +try_text,
+               failed_reserve='' if results['reserve_infease_%'] < 0.01 else '. Failed by {:.1f}%. '.format(results['reserve_infease_%']) +try_text,
+               final_text='' if results['final_soc_infeas_%'] < 0.01 else 'not ',
+               failed_final='' if results['final_soc_infeas_%'] < 0.01 else '. Failed by {:.1f}%. '.format(results['final_soc_infeas_%']) +try_text,
                )
 
     return [dbc.Row("",style={"height":"5rem"}),
@@ -741,8 +767,17 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
         route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
 
         window_options = create_window_options(route_summaries['hour window'].unique().tolist())
+
+        init_results = {"gtfs_name":gtfs_name,
+                        "num_routes":len(route_summaries['route_short_name'].unique()),
+                        "num_buses":int(buses_in_traffic.max()),
+                        "max_energy":ec_total.max(),
+                        "av_energy":ec_total.mean(),
+                        "bus_eol_capacity":bus.usable_capacity}
+
         return (
-                [create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage),
+                [dbc.Container([dbc.Row(display_init_summary(init_results)),
+                                dbc.Row(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage))]),
                  html.Center(
                      html.Div([
                          html.P("Time window for map results:    ",
@@ -847,10 +882,6 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
             dbc.Col(display_optim_summary(results), width={"size":3, "offset":1}),
             dbc.Col(create_optim_results_plot(results), width=6),
         ]),fluid=True)
-        # out = html.Center(html.Div(children=[
-        #     display_optim_summary(results),
-        #     create_optim_results_plot(results)
-        # ]))
         return out
         # return html.Center(create_optim_results_plot(results))
     else:
