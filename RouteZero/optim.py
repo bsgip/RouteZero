@@ -31,7 +31,7 @@ class base_problem():
         if num_buses is None:
             num_buses = buses_in_traffic.max()
         else:
-            assert num_buses > buses_in_traffic.max(), 'num_buses must be greater than max(buses_in_traffic)'
+            assert num_buses >= buses_in_traffic.max(), 'num_buses must be greater than max(buses_in_traffic)'
         # calculate number of buses at the depot
         buses_at_depot = num_buses - buses_in_traffic
 
