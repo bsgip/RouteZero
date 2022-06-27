@@ -345,7 +345,7 @@ def create_routes_map_figure(gtfs_name, map_title, route_summaries, window, tota
     else:
         colorbar_str = 'energy per km'
     m = create_map(route_summaries=route_summaries, shapes=gdf, map_title=map_title,
-                   colorbar_str=colorbar_str, window=window, total=True)
+                   colorbar_str=colorbar_str, window=window, total=total)
 
     return m._repr_html_()
 
@@ -784,6 +784,10 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
                                     label=window_options[0]["label"],
                                     value=window_options[0]["value"],
                                     id="window-selector"),
+                         dbp.Select(items=[{"value":"Total energy","label":"Total energy"}, {"value":"Energy/km", "label":"Energy/km"}],
+                                    label="Energy/km",
+                                    value="Energy/km",
+                                    id="total-energy-toggle"),
                          html.Button('Download CSV', id="btn-ec-results")]
                      ), style={"height": 100}),
                  ],
@@ -800,15 +804,18 @@ def create_window_options(hour_windows):
 
 @callback(
     Output("results-route-map", "children"),
-    Input("window-selector", "value"),
+    [Input("window-selector", "value"),Input("total-energy-toggle","value")],
     [State("route-summary-store", "data"), State("gtfs-selector", "value")],
     prevent_initial_callback=True,
 )
-def show_energy_usage_map(window, route_summary_dict, gtfs_name):
-    if window is not None:
+def show_energy_usage_map(window, total_toggle, route_summary_dict, gtfs_name):
+    if (window is not None) and (total_toggle is not None):
+
+
         df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
         map_title = "Energy consumption of routes between " + window
-        map_html = create_routes_map_figure(gtfs_name, map_title, df, window=window)
+        total = total_toggle=="Total energy"
+        map_html = create_routes_map_figure(gtfs_name, map_title, df, window=window, total=total)
 
         return html.Center(html.Div(
                                         children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="850vh")
