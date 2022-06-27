@@ -352,74 +352,70 @@ def create_route_options():
     return [
         html.H5("Step 2) Predicting energy usage on routes"),
         html.H6("Route options:"),
-        dbp.FormGroup(
-            label='deadhead (%)',
-            inline=True,
-            children=dbp.Slider(
+        dbc.Container([dbc.Row([
+            dbc.Col("deadhead (%)", width=6, align='right'),
+            dbc.Col(dbp.Slider(
                 id="deadhead",
                 value=DEFAULT_DEADHEAD,
                 min=0.0,
                 max=100,
                 stepSize=1.,
-                labelStepSize=50,
-            )
-        ),
-        dbp.FormGroup(
-            label='Peak passengers',
-            inline=True,
-            children=dbp.NumericInput(
-                id="peak-passengers", value=DEFAULT_PEAK_PASSENGER, stepSize=1, min=0
-            )
-        ),
+                labelStepSize=50
+            ), width=5)
+        ]),
+        dbc.Row([
+            dbc.Col("Peak passengers", width=6, align='right'),
+            dbc.Col(dbp.NumericInput(
+                id="peak-passengers", value=DEFAULT_PEAK_PASSENGER, stepSize=1, min=0, style={"width":"7rem"}
+            ), width=5, align="left")
+        ]),]),
     ]
 
 
 def create_feas_optim_options():
     return [
         html.H6("Optimisation options:"),
-        dbp.FormGroup(
-            label='Min plugin time (mins)',
-            inline=True,
-            children=dbp.NumericInput(
-                id='min-charge-time', value=DEFAULT_MIN_CHARGE_TIME, stepSize=1,min=0
-            )
-        ),
-        dbp.FormGroup(
-            label='start charge (%)',
-            inline=True,
-            children=dbp.Slider(
-                id="start-charge",
-                value=DEFAULT_START_CHARGE,
-                min=0.0,
-                max=100.,
-                stepSize=1.,
-                labelStepSize=50,
-            )
-        ),
-        dbp.FormGroup(
-            label='Final charge (%)',
-            inline=True,
-            children=dbp.Slider(
-                id="final-charge",
-                value=DEFAULT_FINAL_CHARGE,
-                min=0.0,
-                max=100.,
-                stepSize=1.,
-                labelStepSize=50,
-            )
-        ),
-        dbp.FormGroup(
-            label='Bus reserve capacity (%)',
-            inline=True,
-            children=dbp.Slider(
-                id="reserve-capacity",
-                value=DEFAULT_RESERVE_CAPACITY,
-                min=0.0,
-                max=100.,
-                stepSize=1.,
-                labelStepSize=50,
-            )
-        ),
+        dbc.Container([
+            dbc.Row([
+                dbc.Col('Min plugin time (mins)', width=6, align="right"),
+                dbc.Col(dbp.NumericInput(
+                id='min-charge-time', value=DEFAULT_MIN_CHARGE_TIME, stepSize=1,min=0, style={"width":"7rem"}),
+                width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("Start charge (%)", width=6, align="right"),
+                dbc.Col(dbp.Slider(
+                    id="start-charge",
+                    value=DEFAULT_START_CHARGE,
+                    min=0.0,
+                    max=100.,
+                    stepSize=1.,
+                    labelStepSize=50),
+                width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("Final charge (%)", width=6, align="right"),
+                dbc.Col(dbp.Slider(
+                    id="final-charge",
+                    value=DEFAULT_FINAL_CHARGE,
+                    min=0.0,
+                    max=100.,
+                    stepSize=1.,
+                    labelStepSize=50),
+                width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("Bus reserve capacity (%)", width=6, align="left"),
+                dbc.Col(dbp.Slider(
+                    id="reserve-capacity",
+                    value=DEFAULT_RESERVE_CAPACITY,
+                    min=0.0,
+                    max=100.,
+                    stepSize=1.,
+                    labelStepSize=50),
+                width=5, align="right")
+            ]),
+        ]),
         dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0),
     ]
 
@@ -432,105 +428,96 @@ def create_depot_options(advanced_options, ec_dict):
         html.P("Optimises the aggregate charging profile to find the minimum power rating"
                " for the depot grid connection and the minimum number of bus chargers required."),
         html.H6("Depot options:"),
-        dbp.FormGroup(
-            label='Max charger power (kW)',
-            inline=True,
-            children=dbp.NumericInput(
-                id="charger-power", value=DEFAULT_CHARGER_POWER, stepSize=1, min=0
-            )
-        ),
-        dbp.FormGroup(
-            label='On-site battery \n capacity (kWh)',
-            inline=True,
-            children=[dbp.NumericInput(
-                id="depot-battery-capacity", value=0, stepSize=1, min=0
-            )]
-        ),
-        dbp.FormGroup(
-            label='On-site battery power (kW)',
-            inline=True,
-            children=dbp.NumericInput(
-                id="depot-battery-power", value=0, stepSize=1, min=0
-            )
-        ),
-        dbp.FormGroup(
-            label='Number of buses',
-            inline=True,
-            children=dbp.Slider(
-                id="num-buses-slider",
-                value=min_buses,
-                min=min_buses,
-                max=max_buses,
-                stepSize=1,
-                labelStepSize=int(np.floor((max_buses-min_buses)/2))
-            )
-        ),
-        html.Div(children=[
-            dbp.FormGroup(
-                label='On-site battery efficiency',
-                inline=True,
-                children=dbp.Slider(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col('Max charger power (kW)', width=6, align="right"),
+                dbc.Col(dbp.NumericInput(
+                id="charger-power", value=DEFAULT_CHARGER_POWER, stepSize=1, min=0, style={"width":"7rem"})
+                ,width=5, align='left')
+            ]),
+            dbc.Row([
+                dbc.Col("On-site battery capacity (kWh)", width=6, align="right"),
+                dbc.Col(dbp.NumericInput(
+                id="depot-battery-capacity", value=0, stepSize=1, min=0, style={"width":"7rem"}),
+                width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col('On-site battery power (kW)', width=6, align='right'),
+                dbc.Col(dbp.NumericInput(
+                id="depot-battery-power", value=0, stepSize=1, min=0, style={"width":"7rem"}),
+                width=5, align="left")
+            ]),
+            dbc.Collapse(dbc.Row([
+                dbc.Col('On-site battery efficiency', width=6, align="right"),
+                dbc.Col(dbp.Slider(
                     id="depot-battery-eff",
                     value=DEFAULT_DEPOT_BATTERY_EFF,
                     min=0.0,
                     max=1.,
                     stepSize=0.01
-                )
-            )], hidden=not advanced_options),
+                ))
+            ]), is_open=advanced_options),
+            dbc.Row([
+                dbc.Col("Number of buses", width=6, align="right"),
+                dbc.Col(dbp.Slider(
+                id="num-buses-slider",
+                value=min_buses,
+                min=min_buses,
+                max=max_buses,
+                stepSize=1,
+                labelStepSize=int(np.floor((max_buses-min_buses)/2))),
+                width=5, align="left")
+            ])
+        ]),
     ]
 
 
 def create_bus_options(advanced_options):
     return [
         html.H6("Bus options:"),
-        dbp.FormGroup(
-            label="Max Passengers",
-            inline=True,
-            children=dbp.NumericInput(
-                id="max-passenger-count", value=70, stepSize=1, min=0
-            ),
-        ),
-        dbp.FormGroup(
-            label="Battery capacity (kWh)",
-            inline=True,
-            children=dbp.NumericInput(
-                id="battery-capacity-kwh", value=400, stepSize=1, min=0
-            ),
-        ),
-        dbp.FormGroup(
-            label="Charging power (kW)",
-            inline=True,
-            children=dbp.NumericInput(
-                id="charging-capacity-kw", value=300, stepSize=1, min=0
-            ),
-        ),
-        dbp.FormGroup(
-            label="Gross mass (kg)",
-            inline=True,
-            children=dbp.NumericInput(
-                id="gross-mass-kg", value=18000, stepSize=1, min=0
-            ),
-        ),
-        html.Div(children=[
-            dbp.FormGroup(
-                label="Charging efficiency",
-                inline=True,
-                children=dbp.Slider(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col("Max Passengers", width=6, align='right'),
+                dbc.Col(dbp.NumericInput(
+                id="max-passenger-count", value=70, stepSize=1, min=0, style={"width":"7rem"}
+            ),width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("Battery capacity (kWh)", width=6, align="right"),
+                dbc.Col(dbp.NumericInput(
+                id="battery-capacity-kwh", value=400, stepSize=1, min=0, style={"width":"7rem"}
+            ),width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("Charging power (kW)", width=6, align='right'),
+                dbc.Col(dbp.NumericInput(
+                id="charging-capacity-kw", value=300, stepSize=1, min=0, style={"width":"7rem"}),
+                width=5,align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("Gross mass (kg)", width=6, align="right"),
+                dbc.Col(dbp.NumericInput(
+                id="gross-mass-kg", value=18000, stepSize=1, min=0, style={"width":"7rem"})
+                ,width=5, align="left")
+            ]),
+            dbc.Collapse([
+            dbc.Row([
+                dbc.Col("Charging efficiency", width=6, align="right"),
+                dbc.Col(dbp.Slider(
                     id="charging-efficiency",
                     value=0.9,
                     min=0.0,
                     max=1.0,
                     stepSize=0.01,
-                ),
-            )], hidden=not advanced_options),
-        html.Div(children=[
-            dbp.FormGroup(
-                label="End of life capacity (%)",
-                inline=True,
-                children=dbp.Slider(
+                ), width=5, align="left")
+            ]),
+            dbc.Row([
+                dbc.Col("End of life capacity (%)", width=6, align="left"),
+                dbc.Col(dbp.Slider(
                     id="eol-capacity", value=80, min=0.0, max=100, stepSize=1., labelStepSize=50,
-                ),
-            )], hidden=not advanced_options),
+                ), width=5, align="right")
+            ])], is_open=advanced_options),
+        ]),
         dbp.Button(id="confirm-bus-options", children="Predict route energy usage"),
     ]
 
@@ -551,9 +538,9 @@ layout = html.Div(
                 dbp.Checkbox("advanced options", id='advanced-options-checkbox', checked=False),
                 dcc.Loading(html.Div(id="agency-selection-form")),
                 html.Div(id="route-selection-form"),
-                html.Div(id="route-options-form"),
+                html.Div(id="route-options-form", style={"margin-top":10}),
                 html.Div(id="bus-information-form"),
-                html.Div(id="depot-options-form"),
+                html.Div(id="depot-options-form", style={"margin-bottom":10}),
                 html.Div(id="feas-optim-options-form"),
             ], style={'padding': 10, 'flex': 1}
         ),
@@ -669,14 +656,6 @@ def select_all_routes(n_clicks, route_agency_dict, agency_name):
 
 def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
     times = times / 60
-    if times[-1] < 168:
-        times = np.hstack([times, np.array([times[-1]+0.01, 168])])
-        buses_in_traffic = np.hstack([buses_in_traffic, np.array([0.0, 0.0])])
-        energy_req = np.hstack([energy_req, np.array([0.0, 0.0])])
-    if times[0] > 0:
-        times = np.hstack([np.array([0, times[0]-0.01], times)])
-        buses_in_traffic = np.hstack([np.array([0.0, 0.0]), buses_in_traffic])
-        energy_req = np.hstack([np.array([0.0, 0.0]), energy_req])
 
     fig = make_subplots(rows=1, cols=2,
                         subplot_titles=['buses on route',
@@ -759,13 +738,29 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
             deadhead_percent / 100,
             RESOLUTION,
             ec_total)
+
+        ## calculate energy requirement over duration of trips
+        route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
+
+        if times[-1] < 168 * 60:
+            times = np.hstack([times, np.array([times[-1] + 0.01, 168*60])])
+            buses_in_traffic = np.hstack([buses_in_traffic, np.array([0.0, 0.0])])
+            return_trip_energy_cons = np.hstack([return_trip_energy_cons, np.array([0.0, 0.0])])
+            depart_trip_energy_req = np.hstack([depart_trip_energy_req, np.array([0.0, 0.0])])
+            route_energy_usage = np.hstack([route_energy_usage, np.array([0.0, 0.0])])
+        if times[0] > 0:
+            times = np.hstack([np.array([0, times[0] - 0.01], times)])
+            buses_in_traffic = np.hstack([np.array([0.0, 0.0]), buses_in_traffic])
+            return_trip_energy_cons = np.hstack([np.array([0.0, 0.0]), return_trip_energy_cons])
+            depart_trip_energy_req = np.hstack([np.array([0.0, 0.0]), depart_trip_energy_req])
+            route_energy_usage = np.hstack([np.array([0.0, 0.0]), route_energy_usage])
+
+
         ec_dict = {"depart_trip_energy_req": depart_trip_energy_req,
                    "return_trip_energy_cons": return_trip_energy_cons,
                    "buses_in_traffic": buses_in_traffic,
                    "times": times}
 
-        ## calculate energy requirement over duration of trips
-        route_energy_usage = np.cumsum(depart_trip_energy_req) - np.cumsum(return_trip_energy_cons)
 
         window_options = create_window_options(route_summaries['hour window'].unique().tolist())
 
