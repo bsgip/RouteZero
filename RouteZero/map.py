@@ -51,7 +51,8 @@ def _create_gdf_of_value(route_summaries, shapes, window=None):
 
     # filter to specified window
     if window is not None:
-        tmp['window_strings'] = tmp['hour window'].apply(lambda x:"{one:.1f} - {two:.1f}".format(one=x[0], two=x[1]))
+        tmp['window_strings'] = tmp['hour window'].apply(lambda x:"{f_hour}:{f_min:02d} - {e_hour}:{e_min:02d}".format(f_hour=int(x[0]), f_min=int((x[0]*60) % 60),
+                                                                 e_hour=int(x[1]), e_min=int((x[1]*60) % 60)))
         tmp = tmp[tmp['window_strings']==window]
         tmp.reset_index(drop=True, inplace=True)
 
@@ -77,16 +78,22 @@ def _create_gdf_of_value(route_summaries, shapes, window=None):
 
     return gdf
 
-def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
+def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None, total=False):
     minx, miny, maxx, maxy = gdf.geometry.total_bounds
 
     centroid_lat = miny + (maxy - miny) / 2
     centroid_lon = minx + (maxx - minx) / 2
 
-    if min_val is None:
-        min_val = gdf['ec/km (kwh/km)'].min()
-    if max_val is None:
-        max_val = gdf['ec/km (kwh/km)'].max()
+    if total:
+        if min_val is None:
+            min_val = gdf['ec (kwh)'].min()
+        if max_val is None:
+            max_val = gdf['ec (kwh)'].max()
+    else:
+        if min_val is None:
+            min_val = gdf['ec/km (kwh/km)'].min()
+        if max_val is None:
+            max_val = gdf['ec/km (kwh/km)'].max()
 
     ## create a map of total energy consumption
     m = folium.Map(location=[centroid_lat, centroid_lon],
@@ -97,12 +104,20 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
     colorscale = branca.colormap.linear.viridis.scale(min_val, max_val)
 
     def style_function(feature):
-        return {
-            'fillOpacity': 0.5,
-            'weight': 3,  # math.log2(feature['properties']['speed'])*2,
-            'color': colorscale(feature['properties']['ec/km (kwh/km)']),
-            # "dashArray": '20, 20'
-        }
+        if total:
+            return {
+                'fillOpacity': 0.5,
+                'weight': 3,  # math.log2(feature['properties']['speed'])*2,
+                'color': colorscale(feature['properties']['ec (kwh)']),
+                # "dashArray": '20, 20'
+            }
+        else:
+            return {
+                'fillOpacity': 0.5,
+                'weight': 3,  # math.log2(feature['properties']['speed'])*2,
+                'color': colorscale(feature['properties']['ec/km (kwh/km)']),
+                # "dashArray": '20, 20'
+            }
 
     # my code for lines
     geo_data = gdf.__geo_interface__
@@ -129,7 +144,7 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None):
 
     return m
 
-def create_map(route_summaries, shapes, map_title,colorbar_str, window=None):
+def create_map(route_summaries, shapes, map_title,colorbar_str, window=None, total=False):
     """
     create a map of the routes that happen during the window color coded by value parameter
     :param route_summaries: summarised route results
@@ -137,12 +152,15 @@ def create_map(route_summaries, shapes, map_title,colorbar_str, window=None):
     :param window: optional list with two hour values specifying to only look at trips that start in that hour window
     :return:
     """
-
-    max_val = route_summaries['ec/km (kwh/km)'].max()
-    min_val = route_summaries['ec/km (kwh/km)'].min()
+    if total:
+        max_val = route_summaries['ec (kwh)'].max()
+        min_val = route_summaries['ec (kwh)'].min()
+    else:
+        max_val = route_summaries['ec/km (kwh/km)'].max()
+        min_val = route_summaries['ec/km (kwh/km)'].min()
 
     gdf = _create_gdf_of_value(route_summaries, shapes, window=window)
-    m = _create_gdf_map(gdf, map_title, colorbar_str, max_val=max_val, min_val=min_val)
+    m = _create_gdf_map(gdf, map_title, colorbar_str, max_val=max_val, min_val=min_val, total=total)
     return m
 
 if __name__=="__main__":

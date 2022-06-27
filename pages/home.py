@@ -160,25 +160,25 @@ def display_init_summary(init_results):
 def display_optim_summary(results):
     setup_summary = """ 
     ###### Setup summary:
-    - Trip deadhead (additional time and energy between trips): {deadhead}%
-    - Peak number of passengers considered on routes: {peak_passengers}
+    - Trip deadhead (additional time and energy between trips): {deadhead}%.
+    - Peak number of passengers considered on routes: {peak_passengers}.
     - {bus_num} buses were used with:
-        - battery capacity: {bus_bat_cap}kWh
-        - max charging rate: {bus_charge}kW
-        - max passengers: {max_pass}
-        - gross mass: {gross_mass}kg
-        - efficiency: {bus_eta}%
-        - end of life capacity: {bus_eol}%
-    - Depot charger power: {charger_power:.1f}kw 
+        - battery capacity: {bus_bat_cap}kWh,
+        - max charging rate: {bus_charge}kW,
+        - max passengers: {max_pass},
+        - gross mass: {gross_mass}kg,
+        - efficiency: {bus_eta}%,
+        - end of life capacity: {bus_eol}%.
+    - Depot charger power: {charger_power:.1f}kw .
     - Depot onsite battery with:
-        - capacity: {depot_bat_cap:.1f}kWh
-        - power rating: {depot_bat_power:.1f}kW
-        - effiency: {depot_bat_eta}%
+        - capacity: {depot_bat_cap:.1f}kWh,
+        - power rating: {depot_bat_power:.1f}kW,
+        - effiency: {depot_bat_eta}%.
     - Optimisation options:
-        - sum bus battery start of week charge: {start_charge}%
-        - required bus battery end of week charge: {final_charge}%
-        - Minimum time allowed to plug in a bus: {min_charge_time}mins
-        - Desired reserve sum bus battery capacity: {reserve}%
+        - sum bus battery start of week charge: {start_charge}%,
+        - required bus battery end of week charge: {final_charge}%,
+        - Minimum time allowed to plug in a bus: {min_charge_time}mins,
+        - Desired reserve sum bus battery capacity: {reserve}%.
     """.format(bus_num=results['num_buses'],
                bus_bat_cap=results['bus']['capacity'],
                bus_charge=results['bus']['max_charging'],
@@ -202,11 +202,11 @@ def display_optim_summary(results):
 
     results_summary = """
     ###### Depot charging analysis summary
-    - The depot could {sol_text}sufficiently charge the buses {failed_sol}
-    - Desired reserve capacity of {reserve}% was {reserve_text} achieved{failed_reserve} 
-    - Desired end of week charge of {final_charge}% was {final_text}achieved{failed_final}
-    - Required grid connection: {grid_con:.1f}kW 
-    - {num_chargers} chargers of {charger_power}kW required to be shared by the {num_buses} buses
+    - The depot could {sol_text}sufficiently charge the buses {failed_sol}.
+    - Desired reserve capacity of {reserve}% was {reserve_text} achieved{failed_reserve}.
+    - Desired end of week charge of {final_charge}% was {final_text}achieved{failed_final}.
+    - Required grid connection: {grid_con:.1f}kW.
+    - {num_chargers} chargers of {charger_power}kW required to be shared by the {num_buses} buses.
     """.format(grid_con=results['grid_limit'],
                num_chargers=int(results['chargers']['number'][0]),
                charger_power=int(results['chargers']['power'][0]),
@@ -254,21 +254,21 @@ def create_optim_results_plot(results):
                                         'Daily energy use and charging', 'Chargers in use'])
 
     fig.add_trace(
-        go.Scatter(x=times, y=charging_power, name="sum bus charging", legendgroup='1'),
+        go.Scatter(x=times, y=charging_power, name="sum bus charging", legendgroup='1', hovertemplate='<br>kW:%{y}'),
         row=1, col=1
     )
     fig.add_trace(
-        go.Scatter(x=times, y=battery_power, name="battery power", legendgroup='1'),
+        go.Scatter(x=times, y=battery_power, name="battery power", legendgroup='1', hovertemplate='<br>kW:%{y}'),
         row=1, col=1
     )
     fig.add_trace(go.Scatter(x=df["hour of week"], y=df["aggregate power"], name='aggregate power',
-                             line=dict(dash='dash'), legendgroup='1'), row=1, col=1)
+                             line=dict(dash='dash'), legendgroup='1', hovertemplate='<br>kW:%{y}'), row=1, col=1)
     fig.add_hline(y=grid_limit, line_dash="dash", annotation_text="Required grid limit",
                   annotation_position="top right", row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=times, y=energy_available, name='sum bus battery', legendgroup='2'),
+    fig.add_trace(go.Scatter(x=times, y=energy_available, name='sum bus battery', legendgroup='2', hovertemplate='<br>kWh:%{y}'),
                   row=2, col=1)
-    fig.add_trace(go.Scatter(x=times, y=battery_soc, name='depot battery', legendgroup='2'),
+    fig.add_trace(go.Scatter(x=times, y=battery_soc, name='depot battery', legendgroup='2', hovertemplate='<br>kWh:%{y}'),
                   row=2, col=1)
     fig.add_hline(y=reserve_energy, line_dash="dash", annotation_text="Reserve bus capacity",
                   annotation_position="top right", row=2, col=1)
@@ -287,15 +287,15 @@ def create_optim_results_plot(results):
     for i in range(c):
         fig.add_trace(go.Scatter(x=times, y=chargers_in_use[:, i],
                                  name="{}kW chargers".format(chargers['power'][i]),
-                                 legendgroup=4),
+                                 legendgroup=4, hovertemplate='<br>number:%{y}'),
                       row=4, col=1)
 
     fig.update_layout(
         xaxis=dict(
-            tickformat="digit",
-            tickmode='linear',
-            tick0=0,
-            dtick=6
+            tickvals=[9, 15, 33, 39, 57, 63, 81, 87, 105, 111, 129, 135, 153, 159],
+            ticktext=['9am Mon', '3pm Mon', '9am Tues', '3pm Tues', '9am Wed', '3pm Wed', '9am Thurs', '3pm Thurs',
+                           '9am Fri',
+                           '3pm Fri', '9am Sat', '3pm Sat', '9am Sun', '3pm Sun'],
         ),
         legend_title=None,
         yaxis_title='Power (kW)',
@@ -303,18 +303,17 @@ def create_optim_results_plot(results):
         width=800,
         legend_tracegroupgap=200,
         xaxis2=dict(
-            tickformat="digit",
-            tickmode='linear',
-            tick0=0,
-            dtick=6
+            tickvals=[9, 15, 33, 39, 57, 63, 81, 87, 105, 111, 129, 135, 153, 159],
+            ticktext=['9am Mon', '3pm Mon', '9am Tues', '3pm Tues', '9am Wed', '3pm Wed', '9am Thurs', '3pm Thurs',
+                           '9am Fri','3pm Fri', '9am Sat', '3pm Sat', '9am Sun', '3pm Sun'],
         ),
         yaxis2_title='State of charge (kWh)',
         yaxis3_title='Energy (MWh)',
         xaxis4=dict(
-            tickformat="digit",
-            tickmode='linear',
-            tick0=0,
-            dtick=6
+            tickvals=[9, 15, 33, 39, 57, 63, 81, 87, 105, 111, 129, 135, 153, 159],
+            ticktext=['9am Mon', '3pm Mon', '9am Tues', '3pm Tues', '9am Wed', '3pm Wed', '9am Thurs', '3pm Thurs',
+                           '9am Fri',
+                           '3pm Fri', '9am Sat', '3pm Sat', '9am Sun', '3pm Sun'],
         ),
         yaxis4_title='Number',
     )
@@ -336,14 +335,17 @@ def read_shp_file(gtfs_name):
     return gpd.read_file(path)
 
 
-def create_routes_map_figure(gtfs_name, map_title, route_summaries, window):
+def create_routes_map_figure(gtfs_name, map_title, route_summaries, window, total=False):
     gdf = read_shp_file(gtfs_name)
 
     from RouteZero.map import create_map
 
-    colorbar_str = 'energy per km'
+    if total:
+        colorbar_str = 'total energy'
+    else:
+        colorbar_str = 'energy per km'
     m = create_map(route_summaries=route_summaries, shapes=gdf, map_title=map_title,
-                   colorbar_str=colorbar_str, window=window)
+                   colorbar_str=colorbar_str, window=window, total=True)
 
     return m._repr_html_()
 
@@ -383,7 +385,7 @@ def create_feas_optim_options():
                 width=5, align="left")
             ]),
             dbc.Row([
-                dbc.Col("Start charge (%)", width=6, align="right"),
+                dbc.Col("Start of week charge (%)", width=6, align="right"),
                 dbc.Col(dbp.Slider(
                     id="start-charge",
                     value=DEFAULT_START_CHARGE,
@@ -394,7 +396,7 @@ def create_feas_optim_options():
                 width=5, align="left")
             ]),
             dbc.Row([
-                dbc.Col("Final charge (%)", width=6, align="right"),
+                dbc.Col("End of week charge (%)", width=6, align="right"),
                 dbc.Col(dbp.Slider(
                     id="final-charge",
                     value=DEFAULT_FINAL_CHARGE,
@@ -663,32 +665,28 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
 
     cols = px_colors.DEFAULT_PLOTLY_COLORS
     fig.add_trace(
-        go.Scatter(x=times, y=buses_in_traffic, name='', line=dict(color=cols[0])),
+        go.Scatter(x=times, y=buses_in_traffic, name='', line=dict(color=cols[0]), hovertemplate='<br>buses:%{y}'),
         row=1, col=1
     )
 
     fig.add_trace(
-        go.Scatter(x=times, y=energy_req, name='', line=dict(color=cols[0])),
+        go.Scatter(x=times, y=energy_req, name='', line=dict(color=cols[0]),hovertemplate='<br>kWh:%{y}'),
         row=1, col=2
     )
 
     fig.update_layout(
         xaxis=dict(
-            tickformat="digit",
-            tickmode='linear',
-            tick0=0,
             dtick=6,
-            title='Hour of week',
-            range=[0,168]
+            tickvals=[9, 15, 33, 39, 57, 63, 81, 87, 105, 111, 129, 135, 153, 159],
+            ticktext = ['9am Mon', '3pm Mon', '9am Tues', '3pm Tues', '9am Wed', '3pm Wed', '9am Thurs', '3pm Thurs', '9am Fri',
+                '3pm Fri', '9am Sat', '3pm Sat', '9am Sun', '3pm Sun'],
         ),
         yaxis=dict(title='# buses'),
         xaxis2=dict(
-            tickformat="digit",
-            tickmode='linear',
-            tick0=0,
-            dtick=6,
-            title='Hour of week',
-            range=[0, 168]
+            tickvals=[9, 15, 33, 39, 57, 63, 81, 87, 105, 111, 129, 135, 153, 159],
+            ticktext=['9am Mon', '3pm Mon', '9am Tues', '3pm Tues', '9am Wed', '3pm Wed', '9am Thurs', '3pm Thurs',
+                      '9am Fri',
+                      '3pm Fri', '9am Sat', '3pm Sat', '9am Sun', '3pm Sun'],
         ),
         yaxis2=dict(title='Energy (kWh)'),
         showlegend=False
@@ -795,7 +793,9 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
 
 def create_window_options(hour_windows):
     sorted_windows =sorted(hour_windows, key=lambda x: x[0])
-    window_strings = ["{one:.1f} - {two:.1f}".format(one=x[0], two=x[1]) for x in sorted_windows]
+    # window_strings = ["{one:.1f} - {two:.1f}".format(one=x[0], two=x[1]) for x in sorted_windows]
+    window_strings = ["{f_hour}:{f_min:02d} - {e_hour}:{e_min:02d}".format(f_hour=int(x[0]), f_min=int((x[0]*60) % 60),
+                                                                 e_hour=int(x[1]), e_min=int((x[1]*60) % 60)) for x in sorted_windows]
     return [{"value": item, "label": item} for item in window_strings]
 
 @callback(
