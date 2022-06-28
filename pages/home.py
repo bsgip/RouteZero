@@ -558,7 +558,7 @@ layout = html.Div(
         html.Div(
             className="main",
             children=[
-                create_info_field(),
+                # html.Div(children=create_info_field()),
                 dcc.Loading(html.Div(id="results-bus-number", children=None)),
                 dcc.Loading(html.Div(id="results-route-map", children=None)),
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
@@ -780,7 +780,14 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
                         "bus_eol_capacity":bus.usable_capacity}
 
         return (
-                [dbc.Container([dbc.Row(display_init_summary(init_results)),
+                [
+                # dbc.Container([
+                #     dbc.Row([
+                #         dbc.Col(display_init_summary(init_results), width=4),
+                #         dbc.Col(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage), width=8)
+                #     ])
+                # ]),
+                dbc.Container([dbc.Row(display_init_summary(init_results)),
                                 dbc.Row(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage))]),
                  html.Center(
                      html.Div([
