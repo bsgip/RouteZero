@@ -25,7 +25,8 @@ from RouteZero.optim import determine_charger_use
 # app.scripts.config.serve_locally = True
 # app.css.config.serve_locally = True
 
-GTFS_FOLDER = "./data/gtfs"
+# GTFS_FOLDER = "./data/gtfs"
+GTFS_FOLDER = "../data/gtfs"
 TRIP_FILENAME = "trip_data.csv"
 SHP_FILENAME = "shapes.shp"
 
