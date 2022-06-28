@@ -29,15 +29,16 @@ RUN apt-get install -y coinor-cbc
 # install packages
 #COPY --from=stage_0  RouteZero  RouteZero
 #COPY --from=stage_0  dash-blueprint dash-blueprint
-RUN --mount=type=ssh git clone -b deploy git@github.com:bsgip/RouteZero.git
+RUN --mount=type=ssh git clone -b docker git@github.com:bsgip/RouteZero.git
 RUN cd ./RouteZero && pip install . && cd ../
-RUN pip install dash
-RUN #cd ./dash-blueprint && pip install . && cd ../
 RUN --mount=type=ssh pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
 RUN rm -rf /root/.cache/pip
-RUN pip install inflection
+
 RUN pip install gunicorn
 
 WORKDIR /home/RouteZero/
-CMD ["gunicorn","--workers=5", "--threads=1", "-b 0.0.0.0:8050", "app:server"]
+
+RUN ls
+# gunicorn --workers=10 --threads=1 -b 0.0.0.0:8050 --timeout 600 app:server
+CMD ["gunicorn","--workers=10", "--threads=1", "-b 0.0.0.0:8050","-t 600", "app:server"]
 # "--chdir ./RouteZero"
