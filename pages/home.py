@@ -810,8 +810,6 @@ def create_window_options(hour_windows):
 )
 def show_energy_usage_map(window, total_toggle, route_summary_dict, gtfs_name):
     if (window is not None) and (total_toggle is not None):
-
-
         df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
         map_title = "Energy consumption of routes between " + window
         total = total_toggle=="Total energy"
