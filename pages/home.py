@@ -134,15 +134,17 @@ def run_init_feasibility(options_dict, ec_dict, num_buses):
 
 def display_init_summary(init_results):
     text = """
-    ###### Route energy usage analysis results
-    - Data source is the publicly available {gtfs_name} GTFS data. From this the busiest week has been extracted for analysis.
+    ###### Results: electricity usage of routes 
+    
+    - Route data is sourced from the publicly available {gtfs_name} GTFS data. 
+    - From this the busiest week has been extracted for analysis.
     - {num_routes} routes have been selected.
     - The 'Buses on route' graph shows how many buses are active on these routes throughout the week.
     - From this we can see a minimum of {num_buses} buses are required for the subsequent analysis.
     - The energy requirement for these routes has been predicted using a data-driven model and considering:
-        - worst case temperatures at the location throughout the year,
-        - worst case loading (all trips have peak loading),
-        - the time and energy requirements have been increased by the deadhead factor,
+        - worst case temperatures at the location (either the hottest or coldest day, whichever is most challenging for the batteries),
+        - worst case bus loading (all trips have peak passenger loading), 
+        - the time and energy requirements have been increased by the deadhead factor to account for travel to/from the beginning/end of the route, 
         - energy requirements change throughout the day due to different traffic conditions and temperature.
     - The max energy required on a single route is {max_energy:.1f}kWh and the average energy required is {av_energy:.1f}kWh{bus_cap}.
     - The predicted total energy required on active routes is shown in the right hand graph.
@@ -225,12 +227,6 @@ def display_optim_summary(results):
             dcc.Markdown(results_summary),
             dcc.Markdown(setup_summary),
             ]
-    # return [dbc.Row("",style={"height":"5rem"}),
-    #         header_text,
-    #         sol_text,
-    #         bus_text,
-    #         charger_text,
-    #         ]
 
 
 def create_optim_results_plot(results):
@@ -352,7 +348,7 @@ def create_routes_map_figure(gtfs_name, map_title, route_summaries, window, tota
 
 def create_route_options():
     return [
-        html.H5("Step 2) Predicting energy usage on routes"),
+        html.H5("Step 2) Predicting electricity usage on routes"),
         html.H6("Route options:"),
         dbc.Container([dbc.Row([
             dbc.Col("deadhead (%)", width=6, align='right'),
@@ -523,6 +519,19 @@ def create_bus_options(advanced_options):
         dbp.Button(id="confirm-bus-options", children="Predict route energy usage"),
     ]
 
+def create_info_field():
+    text = """
+    Welcome RouteZero, a platform for assessing the viability of electrifying bus routes and depots. 
+
+    Please use the interactive panel on the left-hand side of the screen to work through a three step process to
+
+        1) specify the bus routes of interest to you,  
+        2) predict the electricity usage of each route, and  
+        3) predict the electricity demand of a bus depot servicing all of these routes (with charging optimised to 
+        minimise the peak electricity demand that the depot places on the electricity network). 
+    """
+    info_field = dbc.Container(dbc.Row(dbc.Col(dcc.Markdown(text),width={"size":8,"offset":2})))
+    return info_field
 
 layout = html.Div(
     className="grid-container",
@@ -549,6 +558,7 @@ layout = html.Div(
         html.Div(
             className="main",
             children=[
+                create_info_field(),
                 dcc.Loading(html.Div(id="results-bus-number", children=None)),
                 dcc.Loading(html.Div(id="results-route-map", children=None)),
                 dcc.Loading(html.Div(id="results-init-feas", children=None))

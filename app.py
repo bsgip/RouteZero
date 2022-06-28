@@ -33,7 +33,7 @@ navbar = dbc.Navbar(dbc.Container([
       align="center",
       className="g-0",
     ),
-    dbc.Row(dbc.Col([html.H1('RouteZero (alpha)'),"ebus energy usage model / depot charging optimiser"])),
+    dbc.Row(dbc.Col([html.H1('RouteZero (alpha)')])),
     dbc.Row(
         [dbc.Col(dbc.NavItem(dbc.NavLink(page['name'], href=page['relative_path']))) for page in dash.page_registry.values()],
         align="center",
