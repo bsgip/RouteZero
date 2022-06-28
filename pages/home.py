@@ -558,8 +558,10 @@ layout = html.Div(
         html.Div(
             className="main",
             children=[
-                # html.Div(children=create_info_field()),
-                dcc.Loading(html.Div(id="results-bus-number", children=None)),
+                html.Div(children=[
+                    create_info_field(),
+                    dcc.Loading(html.Div(children=None, id="results-bus-number"))
+                ]),
                 dcc.Loading(html.Div(id="results-route-map", children=None)),
                 dcc.Loading(html.Div(id="results-init-feas", children=None))
             ]
@@ -669,7 +671,7 @@ def select_all_routes(n_clicks, route_agency_dict, agency_name):
 def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
     times = times / 60
 
-    fig = make_subplots(rows=1, cols=2,
+    fig = make_subplots(rows=2, cols=1,
                         subplot_titles=['buses on route',
                                         'Total energy required on active routes'])
 
@@ -681,7 +683,7 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
 
     fig.add_trace(
         go.Scatter(x=times, y=energy_req, name='', line=dict(color=cols[0]),hovertemplate='<br>kWh:%{y}'),
-        row=1, col=2
+        row=2, col=1
     )
 
     fig.update_layout(
@@ -781,14 +783,14 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
 
         return (
                 [
-                # dbc.Container([
-                #     dbc.Row([
-                #         dbc.Col(display_init_summary(init_results), width=4),
-                #         dbc.Col(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage), width=8)
-                #     ])
-                # ]),
-                dbc.Container([dbc.Row(display_init_summary(init_results)),
-                                dbc.Row(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage))]),
+                dbc.Container([
+                    dbc.Row([
+                        dbc.Col(display_init_summary(init_results), width=4),
+                        dbc.Col(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage), width=8)
+                    ])
+                ]),
+                # dbc.Container([dbc.Row(display_init_summary(init_results)),
+                                # dbc.Row(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage))]),
                  html.Center(
                      html.Div([
                          html.P("Time window for map results:    ",
