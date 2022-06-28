@@ -160,7 +160,7 @@ def summarise_results(trips_data, ec_km, ec_total):
     tmp['ec (kwh)'] = ec_total
     tmp.drop(columns=['agency_name','trip_id','unique_id','date','start_loc_x','Unnamed: 0',
                       'start_loc_y','start_el','end_loc_x','end_loc_y','end_el','av_elevation',
-                      'trip_start_time','trip_end_time'], inplace=True)
+                      'trip_start_time','trip_end_time','average_speed_mps'], inplace=True)
 
     tmp.reset_index(inplace=True, drop=True)
 
@@ -190,5 +190,5 @@ if __name__=="__main__":
     ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
 
     df = summarise_results(trips_data, ec_km, ec_total)
-    df2 = df.copy()
+
 

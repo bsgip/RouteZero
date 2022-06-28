@@ -24,7 +24,12 @@ def read_route_desc_and_names(inpath):
     """
     routes_all = _read_all_routes(inpath)
     if 'route_desc' in routes_all:
-        return routes_all['route_short_name'].unique().tolist(), routes_all['route_desc'].unique().tolist()
+        route_desc = routes_all['route_desc'].dropna()
+        if len(route_desc):
+            route_desc = route_desc.unique().tolist()
+        else:
+            route_desc = None
+        return routes_all['route_short_name'].unique().tolist(), route_desc
     else:
         return routes_all['route_short_name'].unique().tolist(), None
 
@@ -79,9 +84,11 @@ def read_busiest_week_data(inpath, route_short_names, route_desc, disp=True):
         if len(agency)==1:
             routes['agency_name'] = agency['agency_name'].to_list()[0]
         else:
+            agency['agency_id'] = agency['agency_id'].astype('int64')
+            routes['agency_id'] = routes['agency_id'].astype('int64')
             routes = pd.merge(routes, agency[['agency_id', 'agency_name']], how='left')
     except:
-        routes['agency'] = ""
+        routes['agency_name'] = ""
 
     return routes, trips, stops, stop_times, shapes
 

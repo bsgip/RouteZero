@@ -18,7 +18,12 @@ install_requires = [
     'partridge>=1.1',
     'tqdm~=4.64',
     'geopandas~=0.10',
-    'inflection~=0.5'
+    'inflection~=0.5',
+    'dash==2.5',
+    'dash-extensions',
+    'flask-caching==1.10.1',
+    'dash-bootstrap-components==1.1.0',
+    'scikit-learn==1.1.1'
 ]
 
 if sys.version_info < (3, 7):
@@ -32,7 +37,7 @@ if sys.version_info < (3, 7):
 
 setuptools.setup(
     name="RouteZero",
-    version="0.0.13",
+    version="0.1.1",
     description="Electric bus energy usage prediction and depot charging feasibility. ",
     long_description=long_description,
     long_description_content_type="text/markdown",
