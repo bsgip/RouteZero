@@ -204,10 +204,14 @@ def display_optim_summary(results):
 
     results_summary = """
     ###### Depot charging analysis summary
+    The analysis attempts to find a combination of charging schedule, 
+    that minimises the peak demand and the number of bus chargers needed to be installed.
+    
+    ###### Results
     - The depot could {sol_text}sufficiently charge the buses {failed_sol}.
     - Desired reserve capacity of {reserve}% was {reserve_text} achieved{failed_reserve}.
     - Desired end of week charge of {final_charge}% was {final_text}achieved{failed_final}.
-    - Required grid connection: {grid_con:.1f}kW.
+    - The peak demand was: {grid_con:.1f}kW.
     - {num_chargers} chargers of {charger_power}kW required to be shared by the {num_buses} buses.
     """.format(grid_con=results['grid_limit'],
                num_chargers=int(results['chargers']['number'][0]),
@@ -259,7 +263,7 @@ def create_optim_results_plot(results):
     )
     fig.add_trace(go.Scatter(x=df["hour of week"], y=df["aggregate power"], name='aggregate power',
                              line=dict(dash='dash'), legendgroup='1', hovertemplate='<br>kW:%{y}'), row=1, col=1)
-    fig.add_hline(y=grid_limit, line_dash="dash", annotation_text="Required grid limit",
+    fig.add_hline(y=grid_limit, line_dash="dash", annotation_text="Peak demand",
                   annotation_position="top right", row=1, col=1)
 
     fig.add_trace(go.Scatter(x=times, y=energy_available, name='sum bus battery', legendgroup='2', hovertemplate='<br>kWh:%{y}'),
@@ -348,6 +352,7 @@ def create_routes_map_figure(gtfs_name, map_title, route_summaries, window, tota
 
 def create_route_options():
     return [
+        html.Hr(),
         html.H5("Step 2) Predicting electricity usage on routes"),
         html.H6("Route options:"),
         dbc.Container([dbc.Row([
@@ -414,7 +419,11 @@ def create_feas_optim_options():
                 width=5, align="right")
             ]),
         ]),
-        dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0),
+        dbc.Row([
+            dbc.Col(dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0)),
+            dbc.Col("This may take a minute, please wait, and scroll down for results")
+        ]),
+        # dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0),
     ]
 
 
@@ -422,6 +431,7 @@ def create_depot_options(advanced_options, ec_dict):
     min_buses = int(ec_dict['buses_in_traffic'].max())
     max_buses = int(max(1.2 * min_buses, min_buses+5))
     return [
+        html.Hr(),
         html.H5("Step 3) Optimise charging at depot"),
         html.P("Optimises the aggregate charging profile to find the minimum power rating"
                " for the depot grid connection and the minimum number of bus chargers required."),
@@ -673,7 +683,8 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
 
     fig = make_subplots(rows=2, cols=1,
                         subplot_titles=['buses on route',
-                                        'Total energy required on active routes'])
+                                        'Total energy required on active routes'],)
+                        # vertical_spacing=0.5)
 
     cols = px_colors.DEFAULT_PLOTLY_COLORS
     fig.add_trace(
@@ -687,6 +698,10 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
     )
 
     fig.update_layout(
+        autosize=False,
+        height=533,  # 800/3*4,
+        width=800,
+        # aspectratio={x}
         xaxis=dict(
             dtick=6,
             tickvals=[9, 15, 33, 39, 57, 63, 81, 87, 105, 111, 129, 135, 153, 159],
@@ -787,7 +802,7 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
                     dbc.Row([
                         dbc.Col(display_init_summary(init_results), width=4),
                         dbc.Col(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage), width=8)
-                    ])
+                    ],align='center')
                 ]),
                 # dbc.Container([dbc.Row(display_init_summary(init_results)),
                                 # dbc.Row(create_buses_in_traffic_plots(times, buses_in_traffic, route_energy_usage))]),
@@ -795,10 +810,6 @@ def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
                      html.Div([
                          html.P("Time window for map results:    ",
                                 style={"display": "inline-block", "padding": 10}),
-                         # dcc.Dropdown(window_options,
-                         #              id='window-selector',
-                         #              placeholder='Select time window',
-                         #              style={'display':'inline-block','width':200}),
                          dbp.Select(items=window_options,
                                     label=window_options[0]["label"],
                                     value=window_options[0]["value"],
