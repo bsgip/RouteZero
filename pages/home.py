@@ -356,7 +356,7 @@ def create_route_options():
         html.H5("Step 2) Predicting electricity usage on routes"),
         html.H6("Route options:"),
         dbc.Container([dbc.Row([
-            dbc.Col("deadhead (%)", width=6, align='right'),
+            dbc.Col("deadrunning (%)", width=6, align='right'),
             dbc.Col(dbp.Slider(
                 id="deadhead",
                 value=DEFAULT_DEADHEAD,
