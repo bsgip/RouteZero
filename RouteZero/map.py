@@ -72,7 +72,8 @@ def _create_gdf_of_value(route_summaries, shapes, window=None):
                         "average speed (km/h)":"speed (km/h)",
                         "possible max temp":"max temp",
                         "possible min temp":"min temp",
-                        "trip distance (m)":"length (m)"}, inplace=True)
+                        "trip distance (m)":"length (m)",
+                        'route_short_name':'route short name'}, inplace=True)
     gdf.dropna(inplace=True)
 
 
@@ -124,7 +125,7 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None, to
     folium.GeoJson(
         geo_data,
         style_function=style_function,
-        tooltip=folium.features.GeoJsonTooltip(fields=['route_id', 'ec/km (kwh/km)', 'gradient (%)',
+        tooltip=folium.features.GeoJsonTooltip(fields=['route short name','route_id', 'ec/km (kwh/km)', 'gradient (%)',
                                                        'stops/km', "speed (km/h)", "max temp", "min temp",
                                                        'length (m)', 'ec (kwh)'],
                                                # aliases=tooltip_labels,
@@ -167,12 +168,12 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 
-    trips_data = pd.read_csv('../data/gtfs/adelaide/trip_data.csv')
+    trips_data = pd.read_csv('../data/gtfs/Tas_burnie/trip_data.csv')
     trips_data['passengers'] = 38
 
     shape_ids = trips_data['shape_id'].astype('str')
 
-    shapes = gpd.read_file('../data/gtfs/adelaide/shapes.shp')
+    shapes = gpd.read_file('../data/gtfs/Tas_burnie/shapes.shp')
     window = [5, 10]
     mode='max'
 
@@ -182,7 +183,7 @@ if __name__=="__main__":
 
     route_summaries = summarise_results(trips_data, ec_km, ec_total)
 
-    gdf = _create_gdf_of_value(route_summaries, shapes, window='6.0 - 9.5')
+    gdf = _create_gdf_of_value(route_summaries, shapes, window='6:00 - 9:30')
 
     map_title = "Route Energy Consumption"
     colorbar_str = 'energy per km'

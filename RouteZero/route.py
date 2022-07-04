@@ -60,8 +60,8 @@ def _append_trip_patronage(routes, trips, patronage):
     """
     patronage_df = pd.DataFrame.from_dict(patronage)
     patronage_df = patronage_df.astype({'route_short_name':routes['route_short_name'].dtype,'passengers':'int64'})
-    tmp_df = pd.merge(routes[['route_short_name','route_id','agency_name']],patronage_df, how='left')
-    return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers','agency_name']])
+    tmp_df = pd.merge(routes[['route_short_name','route_id','agency_name','route_long_name']],patronage_df, how='left')
+    return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers','agency_name','route_long_name']])
 
 
 def _calculate_shape_length(shapes):
@@ -89,14 +89,14 @@ def _summarise_trip_data(trips, stop_times, stops):
     """
     stop_times = stop_times.merge(stops[['stop_id', 'elevation','geometry']], how='left')
     stop_times = pd.merge(stop_times, trips[['unique_id','route_id','direction_id','shape_id',
-                                             'trip_id','route_short_name','agency_name', 'length (m)']], how='left')
+                                             'trip_id','route_short_name','agency_name', 'length (m)','route_long_name']], how='left')
     stop_times.sort_values(by=['unique_id', 'direction_id', 'stop_sequence'], ascending=True, inplace=True)
 
     trip_start_stops = stop_times.groupby(by='unique_id').head(1).reset_index(drop=True)
     trip_end_stops = stop_times.groupby(by='unique_id').tail(1).reset_index(drop=True)
 
     trip_summary = trip_start_stops[['unique_id','route_id', 'direction_id', 'shape_id',
-                                     'trip_id','date','route_short_name','agency_name']].copy(deep=True)
+                                     'trip_id','date','route_short_name','agency_name','route_long_name']].copy(deep=True)
     if ('shape_dist_traveled' in stop_times) and (trip_end_stops['shape_dist_traveled'].notna().sum()):
         trip_summary['trip_distance'] = (trip_end_stops['shape_dist_traveled'] - trip_start_stops['shape_dist_traveled']).to_numpy()
 
@@ -284,14 +284,11 @@ if __name__=="__main__":
 
     # inpath = '../data/gtfs/act.zip'
     # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    name = 'adelaide_gtfs'
+    name = 'greater_sydney_gtfs'
     inpath = '../data/gtfs/'+name+'.zip'
 
 
     route_short_names, route_desc = gtfs.read_route_desc_and_names(inpath)
-
-    # route_short_names = routes_all['route_short_name'].to_list()
-    # route_desc = routes_all['route_desc'].to_list()
 
     # route_short_names = ["305", "320", '389', '406']
     # route_names_df = pd.read_csv('../data/zenobe_routes.csv')
