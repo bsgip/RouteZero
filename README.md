@@ -26,7 +26,7 @@ pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash
 ## gtfs data
 Greater sydney:
     - https://opendata.transport.nsw.gov.au/dataset/timetables-complete-gtfs
-    - last updated 2022-03-21
+    - last updated 2022-06-04
 
 Public transport victoria:
     - https://discover.data.vic.gov.au/dataset/ptv-timetable-and-geographic-information-2015-gtfs

@@ -133,12 +133,6 @@ def daily_temp_profile(hour, low, high, low_hour=6, high_hour=15):
     return cs(hour)
 
 if __name__=='__main__':
-    import time
-    import matplotlib.pyplot as plt
-    # import pandas as pd
-    import geopandas as gpd
-    from shapely import wkt
-
     from sklearn.metrics.pairwise import haversine_distances
 
     weather_df = pd.read_csv("../data/routezero_weather.csv")
@@ -152,71 +146,9 @@ if __name__=='__main__':
     latitude = trips_data['start_loc_y'].to_numpy()[0]
     longitude = trips_data['start_loc_x'].to_numpy()[0]
 
-    # p1 = np.deg2rad(np.array([[latitude, longitude]]))
-    # p2 = np.deg2rad(np.array([[weather_df['lat'].to_numpy()[0], weather_df['lon'].to_numpy()[0]]]))
-
     temps = TemperatureData("../data/routezero_weather.csv")
     d = temps(latitude=latitude, longitude=longitude, datetime=weather_df['datetime'][0])
 
-    # lat1 = latitude
-    # lon1 = longitude
-    #
-    # lat2 = weather_df['lat'].to_numpy()[0]
-    # lon2 = weather_df['lon'].to_numpy()[0]
-    #
-    # # haversine formula
-    # R = 7371
-    # dLat = np.deg2rad(lat1 - lat2)
-    # dLon = np.deg2rad(lon1 - lon2)
-    # a = np.sin(dLat / 2) * np.sin(dLat / 2) + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dLon / 2) * np.sin(dLon / 2)
-    # c =
-
-
-
-
-    # trips_data['passengers'] = 38
-    #
-    # num_years = 5
-    #
-    # start = [2021-num_years, 1, 1] #datetime.datetime(2021 - num_years, 1, 1)
-    # end = [2021, 1, 1]
-    #
-    # df = trips_data.drop_duplicates('route_short_name')
-    #
-    # for i, r in df.iterrows():
-    #     route_short_name = r['route_short_name']
-    #
-    #     inds = trips_data[trips_data.route_short_name==route_short_name].index
-    #     start_hour = np.mod(trips_data[trips_data.route_short_name==route_short_name].trip_start_time/3600, 24)
-    #     end_hour = np.mod(trips_data[trips_data.route_short_name == route_short_name].trip_end_time/3600, 24)
-    #
-    #     x = r['start_loc_x']
-    #     y = r['start_loc_y']
-    #     el = r['start_el']
-    #     daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
-    #
-    #     t1 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
-    #     t2 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
-    #
-    #     t5 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
-    #     t6 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
-    #
-    #     x = r['end_loc_x']
-    #     y = r['end_loc_y']
-    #     el = r['end_el']
-    #
-    #     daily_low_min, daily_low_max, daily_high_min, daily_high_max = location_design_temp([y, x], el)
-    #     t3 = daily_temp_profile(start_hour, daily_low_max, daily_high_max)
-    #     t4 = daily_temp_profile(end_hour, daily_low_max, daily_high_max)
-    #
-    #     t7 = daily_temp_profile(start_hour, daily_low_min, daily_high_min)
-    #     t8 = daily_temp_profile(end_hour, daily_low_min, daily_high_min)
-    #
-    #     temp_max = np.vstack([t1, t2, t3, t4]).max(axis=0)
-    #     temp_min = np.vstack([t5, t6, t7, t8]).min(axis=0)
-    #
-    #     trips_data.loc[inds, 'min_temp'] = temp_min
-    #     trips_data.loc[inds, 'max_temp'] = temp_max
 
 
 
