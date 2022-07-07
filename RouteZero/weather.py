@@ -5,39 +5,54 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 import pandas as pd
 
-class TemperatureData():
+# class TemperatureData():
+#     """
+#     A class for working with the historical hourly temperature data that we have scraped
+#     """
+#     def __init__(self, datafile):
+#         """
+#         init function
+#         :param datafile: path to csv
+#         """
+#         df = pd.read_csv(datafile)
+#         df['datetime'] = pd.to_datetime(df['dt'], unit='s')
+#         gb = df.groupby('lat')
+#         self.station_dfs = [x[1].reset_index() for x in gb]
+#         self.station_locs = np.array([[x['lat'][0], x['lon'][0]] for x in self.station_dfs])
+#
+#     def __call__(self, latitude, longitude, datetime):
+#         """
+#         Returns the temperature recorded at the station nearest to (latitude, longitude) at the closest time to datetime
+#         :param latitude: latitude in degrees
+#         :param longitude: longitude in degrees
+#         :param datetime: datetime to get temperature of
+#         :return:
+#         """
+#         p2 = np.array([[latitude, longitude]])
+#         d = haversine_distances(np.deg2rad(self.station_locs), np.deg2rad(p2))
+#         station_ind = np.argmin(d)      # index of closest station
+#         df = self.station_dfs[station_ind]
+#         dt_ind = np.argmin((datetime-df['datetime']).abs())       # closest recording in time
+#         temp = df.loc[dt_ind, 'temp']
+#
+#         return temp
+#
+
+def get_temperature_by_date(location_coords, elevation, date):
     """
-    A class for working with the historical hourly temperature data that we have scraped
+    Gets the min and max temperature at the location and elevation for a given date
+    :param location_coords: (N,E) gps coords
+    :param elevation: float value at location (m)
+    :param date: datetime
+    :return:
     """
-    def __init__(self, datafile):
-        """
-        init function
-        :param datafile: path to csv
-        """
-        df = pd.read_csv(datafile)
-        df['datetime'] = pd.to_datetime(df['dt'], unit='s')
-        gb = df.groupby('lat')
-        self.station_dfs = [x[1].reset_index() for x in gb]
-        self.station_locs = np.array([[x['lat'][0], x['lon'][0]] for x in self.station_dfs])
 
-    def __call__(self, latitude, longitude, datetime):
-        """
-        Returns the temperature recorded at the station nearest to (latitude, longitude) at the closest time to datetime
-        :param latitude: latitude in degrees
-        :param longitude: longitude in degrees
-        :param datetime: datetime to get temperature of
-        :return:
-        """
-        p2 = np.array([[latitude, longitude]])
-        d = haversine_distances(np.deg2rad(self.station_locs), np.deg2rad(p2))
-        station_ind = np.argmin(d)      # index of closest station
-        df = self.station_dfs[station_ind]
-        dt_ind = np.argmin((datetime-df['datetime']).abs())       # closest recording in time
-        temp = df.loc[dt_ind, 'temp']
-
-        return temp
-
-
+    point = Point(location_coords[0], location_coords[1], elevation)
+    daily = Daily(point, date, date)
+    temp_data = daily.fetch()
+    tmin = temp_data["tmin"].values[0]
+    tmax = temp_data["tmax"].values[0]
+    return tmin, tmax
 
 
 
@@ -73,6 +88,7 @@ def historical_daily_temperatures(num_years, location_coords, elevation):
     station_df = station_df[station_df.daily_start.notnull()]
     station_df = station_df.sort_values(by='distance')
 
+    temp_data = None
     for i in range(len(station_df)):
         nearest = station_df.iloc[i]
 
@@ -124,13 +140,20 @@ def typical_months_temperatures(month, location_coords, elevation):
     tmax = np.vstack(tmax_list)
     return tavg.mean(axis=0), tmin.mean(axis=0), tmax.mean(axis=0)
 
-def daily_temp_profile(hour, low, high, low_hour=6, high_hour=15):
+def daily_temp_profile(hour, low, high):
+    standard_temps = np.array([19.54894928, 19.26742754, 18.92731884, 18.67521739, 18.44326087,
+       18.22728261, 18.13927536, 18.09126812, 18.69884058, 20.03550725,
+       21.30811594, 22.26322464, 22.90880435, 23.31202899, 23.42528986,
+       23.46021739, 23.20536232, 22.6626087 , 22.0709058 , 21.50652174,
+       20.90311594, 20.49789855, 20.14619565, 19.77431159])
 
-    hours = [(high_hour-24), low_hour, high_hour, 24+low_hour, 24+high_hour]
-    temps = [high, low, high, low, high]
-    cs = CubicSpline(hours, temps, bc_type='periodic')
+    norm_standard_temp = (standard_temps-standard_temps.min())/(standard_temps.max()-standard_temps.min())
 
-    return cs(hour)
+    profile = norm_standard_temp * (high-low) + low
+
+    hours = np.arange(24)
+
+    return np.interp(np.mod(hour,24), hours, profile)
 
 if __name__=='__main__':
     from sklearn.metrics.pairwise import haversine_distances

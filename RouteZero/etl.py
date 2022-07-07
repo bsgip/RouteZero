@@ -5,6 +5,10 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 import srtm
+import pytz
+from sklearn.metrics.pairwise import haversine_distances
+
+from RouteZero import weather
 
 def etl_bus_data():
     in_folder = "../data/bus_data/raw_csv/"
@@ -105,7 +109,7 @@ def etl_transport():
     return trip_df
 
 def etl_merge_transport_bus():
-    ## todo: also add elevation data once we get it
+    ## todo: try to improve elevation data somehow??
 
     trip_data_1 = pd.read_csv('../data/transport/sheet1_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
     trip_data_2 = pd.read_csv('../data/transport/sheet2_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
@@ -190,44 +194,211 @@ def etl_merge_transport_bus():
 
 
     trip_data[trip_data["delta SOC (%)"] <= 0] = np.nan      # should always be using energy
+    trip_data.dropna(inplace=True)
+    trip_data.reset_index(inplace=True)
+    trip_data.to_csv("../data/trip_data_merged.csv")
+
+
+def etl_add_historical_temps():
+    aest = pytz.timezone("Australia/Sydney")
+
+    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data['start_time'] = trip_data['start_time'].dt.tz_localize(aest)
+    trip_data['end_time'] = trip_data['end_time'].dt.tz_localize(aest)
+    trip_data.dropna(inplace=True)                                  # shouldn't need this
+
+    weather_df = pd.read_csv("../data/routezero_weather.csv")
+
+    weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
+    weather_df.datetime = weather_df.datetime.dt.tz_localize('UTC').dt.tz_convert(aest)
+
+    weather_df.drop(columns=["feels_like", "pressure", "humidity", "dew_point", "clouds", "visibility",
+                             "wind_speed", "wind_deg", "wind_gust", "rain__1h", "weather__description",
+                             "weather__main"], inplace=True)
+
+    weather_df.sort_values(by="dt", inplace=True)
+    weather_df.set_index('datetime', inplace=True)
+
+    # separate by station
+    weather_df['station_id'] = np.nan
+    unique_stations = weather_df.drop_duplicates(subset=["lat", "lon"])
+    station_lats = unique_stations['lat'].to_list()
+    station_lons = unique_stations['lon'].to_list()
+    weather_df.loc[(weather_df.lat == station_lats[0]) & (weather_df.lon == station_lons[0]), 'station_id'] = 0
+    weather_df.loc[(weather_df.lat == station_lats[1]) & (weather_df.lon == station_lons[1]), 'station_id'] = 1
+    weather_df.loc[(weather_df.lat == station_lats[2]) & (weather_df.lon == station_lons[2]), 'station_id'] = 2
+    weather_df['station_id'] = weather_df['station_id'].astype(int)
+
+    weather_data_start = weather_df.index.min()
+    weather_data_end = weather_df.index.max()
+
+    # closest station to start of each trip
+    X = np.deg2rad(np.vstack([trip_data['start_loc_y'].to_numpy(), trip_data['start_loc_x'].to_numpy()]).T)
+    Y = np.deg2rad(np.vstack([np.array(station_lats), np.array([station_lons])]).T)
+    dists = haversine_distances(X, Y)
+    start_stations = np.argmin(dists, axis=1)
+
+    # closest station to end of each trip
+    X = np.deg2rad(np.vstack([trip_data['end_loc_y'].to_numpy(), trip_data['end_loc_x'].to_numpy()]).T)
+    Y = np.deg2rad(np.vstack([np.array(station_lats), np.array([station_lons])]).T)
+    dists = haversine_distances(X, Y)
+    end_stations = np.argmin(dists, axis=1)
+
+    for i in tqdm(range(len(trip_data))):
+        trip = trip_data.iloc[i]
+
+        start_dt = trip['start_time']
+        end_dt = trip['end_time']
+
+        start_station_data = weather_df[weather_df.station_id == start_stations[i]]
+        end_station_data = weather_df[weather_df.station_id == end_stations[i]]
+
+        if ((start_dt > weather_data_start) and (
+                end_dt < weather_data_end)):  # check teh data contains the dates of trip
+            start_temp = \
+            start_station_data.loc[[abs(start_station_data['dt'] - start_dt.timestamp()).idxmin()]]["temp"].values[0]
+            end_temp = end_station_data.loc[[abs(end_station_data['dt'] - end_dt.timestamp()).idxmin()]]["temp"].values[
+                0]
+            temp = (start_temp + end_temp) / 2
+
+            ind = trip_data.index.values[i]
+            trip_data.loc[ind, "temp"] = temp
+            trip_data.loc[ind, "temp_data_exist"] = True
+        else:
+            ind = trip_data.index.values[i]
+            trip_data.loc[ind, "temp"] = np.nan
+            trip_data.loc[ind, "temp_data_exist"] = False
+
+    trip_data["start_time"] = trip_data["start_time"].dt.tz_localize(None)
+    trip_data["end_time"] = trip_data["end_time"].dt.tz_localize(None)
+    trip_data.to_csv("../data/trip_data_merged.csv")
+
+def etl_average_temperature_profile():
+    weather_df = pd.read_csv("../data/routezero_weather.csv")
+
+    aest = pytz.timezone("Australia/Sydney")
+    weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
+    weather_df.datetime = weather_df.datetime.dt.tz_localize('UTC').dt.tz_convert(aest)
+
+    weather_df.drop(columns=["feels_like","pressure","humidity","dew_point","clouds","visibility",
+                             "wind_speed","wind_deg","wind_gust","rain__1h","weather__description",
+                             "weather__main"],inplace=True)
+
+    weather_df.sort_values(by="dt", inplace=True)
+    weather_df.set_index('datetime',inplace=True)
+
+    # separate by station
+    weather_df['station_id'] = np.nan
+    unique_stations = weather_df.drop_duplicates(subset=["lat","lon"])
+    station_lats = unique_stations['lat'].to_list()
+    station_lons = unique_stations['lon'].to_list()
+    weather_df.loc[(weather_df.lat==station_lats[0]) & (weather_df.lon==station_lons[0]),'station_id'] = 0
+    weather_df.loc[(weather_df.lat==station_lats[1]) & (weather_df.lon==station_lons[1]),'station_id'] = 1
+    weather_df.loc[(weather_df.lat==station_lats[2]) & (weather_df.lon==station_lons[2]),'station_id'] = 2
+    weather_df['station_id'] = weather_df['station_id'].astype(int)
+
+    av = np.zeros(24,)
+    count = 0
+
+    for station in range(3):
+        single_station = weather_df[weather_df.station_id == station].copy()
+        days = [g[1] for g in single_station.groupby(single_station.index.date)]
+        for day in days:
+            plt.plot((day.dt-day.dt.values[0])/60/60, day.temp)
+            if len(day.temp)==24:
+                av += day.temp.values
+                count += 1
+
+    av = av / count
+
+    plt.plot(np.arange(24), av, linewidth=2, color='k')
+    plt.show()
+
+    print(av)
+
+def etl_add_estimated_temp():
+    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    for i in tqdm(range(len(trip_data))):
+        trip = trip_data.iloc[i]
+        index = trip_data.index.values[i]
+        if not trip["temp_data_exist"]:
+            day = datetime.datetime(year=trip["start_time"].year, month=trip["start_time"].month, day=trip["start_time"].day)
+
+            # temperature at start
+            tmin, tmax = weather.get_temperature_by_date([trip["start_loc_y"], trip["start_loc_x"]], trip["start_el"], day)
+            start_hour = trip["start_time"].hour + trip["start_time"].minute/60
+            start_temp = weather.daily_temp_profile(start_hour, tmin, tmax)
+
+            # temperature at end
+            tmin, tmax = weather.get_temperature_by_date([trip["end_loc_y"], trip["end_loc_x"]], trip["end_el"], day)
+            end_hour = trip["end_time"].hour + trip["end_time"].minute/60
+            end_temp = weather.daily_temp_profile(end_hour, tmin, tmax)
+
+            temp = (start_temp + end_temp)/2
+
+            trip_data.loc[index, "temp"] = temp
+
     trip_data.to_csv("../data/trip_data_merged.csv")
 
 if __name__=="__main__":
-    # etl_transport()
-    # etl_bus_data()
-    etl_merge_transport_bus()
-    # #
-    trip_data = pd.read_csv("../data/trip_data_merged.csv")
-    trip_data.dropna()
+    # etl_transport()                   # 1
+    # etl_bus_data()                    # 2
+    # etl_merge_transport_bus()         # 3
+    # etl_add_historical_temps()        # 4
+    # etl_add_estimated_temp()          # 5
 
+    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+
+
+    inds = trip_data['start SOC (%)'] > 97
+
+    trip_data_f = trip_data[inds]
+    trip_data_nf = trip_data[~inds]
     #
     plt.subplot(3,3,1)
-    plt.scatter(trip_data['num_stops']/trip_data['distance (m)']*1000, 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
+    plt.scatter(trip_data.loc[~inds,'num_stops']/trip_data.loc[~inds,'distance (m)']*1000, 4.2*trip_data.loc[~inds,'delta SOC (%)']/trip_data.loc[~inds,'distance (m)']*1000)
+    plt.scatter(trip_data.loc[inds,'num_stops']/trip_data.loc[inds,'distance (m)']*1000, 4.2*trip_data.loc[inds,'delta SOC (%)']/trip_data.loc[inds,'distance (m)']*1000)
     plt.xlabel("stops/km")
+    plt.ylabel("ec/km")
 
     plt.subplot(3,3,2)
-    plt.scatter(trip_data['speed (m/s)'], 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
+    plt.scatter(trip_data_nf['speed (m/s)'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
+    plt.scatter(trip_data_f['speed (m/s)'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
     plt.xlabel("speed")
+    plt.ylabel("ec/km")
 
     plt.subplot(3,3,3)
-    plt.scatter(trip_data['pass_true_part'], 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
+    plt.scatter(trip_data_nf['pass_true_part'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
+    plt.scatter(trip_data_f['pass_true_part'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
     plt.xlabel("av pass")
+    plt.ylabel("ec/km")
 
     plt.subplot(3,3,4)
-    plt.scatter(trip_data['gradient (%)'], 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
+    plt.scatter(trip_data_nf['gradient (%)'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
+    plt.scatter(trip_data_f['gradient (%)'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
     plt.xlabel("gradient (%)")
+    plt.ylabel("ec/km")
+
 
     plt.subplot(3,3,5)
-    plt.scatter(trip_data['start SOC (%)'], 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
+    plt.scatter(trip_data.loc[~inds,'start SOC (%)'], 4.2*trip_data.loc[~inds,'delta SOC (%)']/trip_data.loc[~inds,'distance (m)']*1000)
+    plt.scatter(trip_data.loc[inds,'start SOC (%)'], 4.2*trip_data.loc[inds,'delta SOC (%)']/trip_data.loc[inds,'distance (m)']*1000)
     plt.xlabel("start_soc")
+    plt.ylabel("ec/km")
 
+    plt.subplot(3,3,6)
+    plt.scatter(trip_data_nf['distance (m)'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
+    plt.scatter(trip_data_f['distance (m)'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
+    plt.xlabel("distance")
+    plt.ylabel("ec/km")
 
+    plt.subplot(3,3,7)
+    plt.scatter(trip_data_nf['temp'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
+    plt.scatter(trip_data_f['temp'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
+    plt.xlabel("temperature")
+    plt.ylabel("ec/km")
 
 
     plt.tight_layout()
     plt.show()
-    #
-    #
-    # #
-    #
-    #
+
