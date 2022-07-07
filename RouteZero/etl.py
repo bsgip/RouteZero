@@ -7,6 +7,7 @@ import os
 import srtm
 import pytz
 from sklearn.metrics.pairwise import haversine_distances
+import geopandas as gpd
 
 from RouteZero import weather
 
@@ -171,6 +172,20 @@ def etl_merge_transport_bus():
                     start_loc = [float(x) for x in start_data['GPS_TRACKING'][1:-1].split(",")]
                     end_loc = [float(x) for x in end_data['GPS_TRACKING'][1:-1].split(",")]
 
+                    ## GPS_track
+                    gps_track = bus_data.iloc[i_start:i_end]["GPS_TRACKING"].values
+                    path_x = []
+                    path_y = []
+                    for p in gps_track:
+                        yx = p[1:-1].split(",")
+                        path_x.append(yx[1])
+                        path_y.append(yx[0])
+                    path_x = ",".join(path_x)
+                    path_y = ",".join(path_y)
+
+
+
+
                     # elevations
                     elevation_data = srtm.get_data()
                     start_el = elevation_data.get_elevation(latitude=start_loc[0], longitude=start_loc[1])
@@ -191,6 +206,9 @@ def etl_merge_transport_bus():
                     trip_data.loc[trip.name, "start_el"] = start_el
                     trip_data.loc[trip.name, "end_el"] = end_el
                     trip_data.loc[trip.name, "gradient (%)"] = gradient
+                    trip_data.loc[trip.name, "path_x"] = path_x
+                    trip_data.loc[trip.name, "path_y"] = path_y
+
 
 
     trip_data[trip_data["delta SOC (%)"] <= 0] = np.nan      # should always be using energy
@@ -340,15 +358,64 @@ def etl_add_estimated_temp():
 
     trip_data.to_csv("../data/trip_data_merged.csv")
 
+
+def analyse_gps_and_shape():
+    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+
+    gtfs_trip_data = pd.read_csv("../data/gtfs/greater_sydney/trip_data.csv")
+    shapes = gpd.read_file("../data/gtfs/greater_sydney/shapes.shp")
+
+    dist_away = []
+    for i in range(len(trip_data)):
+        trip = trip_data.iloc[i]
+        route = trip["ROUTE"]
+
+        path_x = [float(x) for x in trip["path_x"].split(",")]
+        path_y = [float(x) for x in trip["path_y"].split(",")]
+
+        shape_ids = gtfs_trip_data[gtfs_trip_data["route_short_name"]==route]["shape_id"].unique().tolist()
+        subset_shapes = shapes[shapes["shape_id"].isin(shape_ids)]
+
+        X = np.vstack([path_y, path_x]).T
+
+        geometry = subset_shapes["geometry"].values
+        av_dist = []
+        smallest_dist = 1000
+        closest_xy = None
+        for g in geometry:
+            xy = g.xy
+            Y = np.vstack([xy[1], xy[0]]).T
+            dists = haversine_distances(X, Y) * 6371    # dists in kms
+            av_dist.append(dists.min(axis=1).mean())
+
+            if dists.min(axis=1).mean() < smallest_dist:
+                smallest_dist = dists.min(axis=1).mean()
+                closest_xy = xy
+
+        av_dist = np.array(av_dist).min()
+        if av_dist > 2.5:
+            plt.plot(closest_xy[0], closest_xy[1])
+            plt.plot(path_x, path_y, linestyle='--', marker='x', color='k')
+            plt.title("trip" + str(i) + " av_dist " + str(av_dist) + " speed " + str(trip["speed (m/s)"] * 3.6))
+            plt.show()
+        else:
+            plt.clf()
+        dist_away.append(av_dist)
+
+    plt.hist(dist_away, bins=30)
+    plt.show()
+
+    return dist_away
+
 if __name__=="__main__":
     # etl_transport()                   # 1
     # etl_bus_data()                    # 2
     # etl_merge_transport_bus()         # 3
     # etl_add_historical_temps()        # 4
     # etl_add_estimated_temp()          # 5
+    analyse_gps_and_shape()             # finally do this, and then do something with any that lok bad
 
     trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
-
 
     inds = trip_data['start SOC (%)'] > 97
 
