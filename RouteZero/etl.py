@@ -366,6 +366,8 @@ def analyse_gps_and_shape():
     shapes = gpd.read_file("../data/gtfs/greater_sydney/shapes.shp")
 
     dist_away = []
+    gtfs_grad = []
+    gtfs_shape_ids = []
     for i in range(len(trip_data)):
         trip = trip_data.iloc[i]
         route = trip["ROUTE"]
@@ -379,33 +381,51 @@ def analyse_gps_and_shape():
         X = np.vstack([path_y, path_x]).T
 
         geometry = subset_shapes["geometry"].values
-        av_dist = []
-        smallest_dist = 1000
-        closest_xy = None
-        for g in geometry:
+
+
+        xy_list = []
+        dist_list = []
+        start_start = []
+        start_end = []
+        for i,g in enumerate(geometry):
             xy = g.xy
             Y = np.vstack([xy[1], xy[0]]).T
             dists = haversine_distances(X, Y) * 6371    # dists in kms
-            av_dist.append(dists.min(axis=1).mean())
 
-            if dists.min(axis=1).mean() < smallest_dist:
-                smallest_dist = dists.min(axis=1).mean()
-                closest_xy = xy
+            start_start.append(dists[0,0])
+            start_end.append(dists[0,-1])
+            xy_list.append(xy)
+            dist_list.append(dists.min(axis=1).mean())
 
-        av_dist = np.array(av_dist).min()
-        if av_dist > 2.5:
+        inds_sort = np.argsort(dist_list)
+        for ii in inds_sort:
+            if start_start[ii] < start_end[ii]:
+                break
+
+        i_closest = ii
+        min_dist = dist_list[ii]
+        closest_xy = xy_list[ii]
+
+        if min_dist > 2.5:
             plt.plot(closest_xy[0], closest_xy[1])
             plt.plot(path_x, path_y, linestyle='--', marker='x', color='k')
-            plt.title("trip" + str(i) + " av_dist " + str(av_dist) + " speed " + str(trip["speed (m/s)"] * 3.6))
+            plt.title("trip" + str(i) + " av_dist " + str(min_dist) + " speed " + str(trip["speed (m/s)"] * 3.6))
             plt.show()
         else:
             plt.clf()
-        dist_away.append(av_dist)
+
+        ind = subset_shapes.index.values[i_closest]
+        s_id = subset_shapes.loc[ind, "shape_id"]
+        gtfs_grad.append(gtfs_trip_data[gtfs_trip_data["shape_id"]==s_id]["average_gradient_%"].values[0])
+        gtfs_shape_ids.append(s_id)
+        dist_away.append(i_closest)
 
     plt.hist(dist_away, bins=30)
     plt.show()
 
-    return dist_away
+
+
+    return dist_away, gtfs_grad, gtfs_shape_ids
 
 if __name__=="__main__":
     # etl_transport()                   # 1
@@ -413,10 +433,19 @@ if __name__=="__main__":
     # etl_merge_transport_bus()         # 3
     # etl_add_historical_temps()        # 4
     # etl_add_estimated_temp()          # 5
-    analyse_gps_and_shape()             # finally do this, and then do something with any that lok bad
+    dist_away, gtfs_grad, gtfs_shape_ids = analyse_gps_and_shape()             # finally do this, and then do something with any that lok bad
 
     trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
+
+    plt.scatter(trip_data['gradient (%)'],gtfs_grad)
+    plt.xlabel("bus data gradient (%)")
+    plt.ylabel("gtfs data gradient (%)")
+    plt.title("bus data gradient vs gtfs data gradient")
+    # plt.plot(gtfs_grad)
+    plt.show()
+
+    1/0
     inds = trip_data['start SOC (%)'] > 97
 
     trip_data_f = trip_data[inds]
@@ -465,6 +494,10 @@ if __name__=="__main__":
     plt.xlabel("temperature")
     plt.ylabel("ec/km")
 
+    plt.subplot(3,3,8)
+    plt.scatter(gtfs_grad, 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
+    plt.xlabel("gtfs gradient (%)")
+    plt.ylabel("ec/km")
 
     plt.tight_layout()
     plt.show()
