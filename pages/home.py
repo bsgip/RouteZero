@@ -117,12 +117,13 @@ def run_init_feasibility(options_dict, ec_dict, num_buses):
     reserve = options_dict["reserve_capacity"]
     battery = options_dict["battery"]
     chargers = options_dict["chargers"]
+    windows = options_dict["windows"]
     bus = AppData.get_bus(options_dict["bus_dict"])
     problem = Extended_feas_problem(None, None, bus, chargers, grid_limit, start_charge=start_charge,
                                     final_charge=final_charge,
                                     deadhead=deadhead, resolution=RESOLUTION, min_charge_time=min_charge_time,
                                     reserve=reserve, num_buses=num_buses,
-                                    battery=battery, ec_dict=ec_dict)
+                                    battery=battery, ec_dict=ec_dict, windows=windows)
 
     results = problem.solve()
     used_daily, charged_daily = problem.summarise_daily()
@@ -418,6 +419,12 @@ def create_feas_optim_options():
                     labelStepSize=50),
                 width=5, align="right")
             ]),
+            dbc.Row([
+                dbc.Col("Allowed charging times:")
+            ]),
+            dbc.Row([
+                dbc.Col(dbp.Checkbox("{}:00-{}:00".format(i,i+1), id="window-{}".format(i), checked=True)) for i in range(24)
+            ], id='windows-row'),
         ]),
         dbc.Row([
             dbc.Col(dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0)),
@@ -889,14 +896,16 @@ def show_init_optim_options_form(n_clicks, advanced_options, ec_dict):
      State("final-charge", "value"), State("reserve-capacity", "value"),
      State("deadhead", "value"), State("bus-store", "data"),
      State("ec-store", "data"), State("peak-passengers", "value"),
-     State("num-buses-slider", "value")],
+     State("num-buses-slider", "value"), State("windows-row", "children")],
     prevent_initial_callbacks=True
 )
 def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_power,
                             depot_bat_eff, min_charge_time, start_charge, final_charge,
                             reserve_capacity, deadhead_percent, bus_dict, ec_dict,
-                            peak_passengers, num_buses):
+                            peak_passengers, num_buses, windows_row):
     if n_clicks:
+        windows = [w["props"]["children"]["props"]["checked"] for w in windows_row]
+
         battery = AppData.battery_dict(depot_bat_cap, depot_bat_power, depot_bat_eff)
         chargers = {"power": charger_power, "number": "optim", "cost": 10}
         options_dict = {"deadhead": deadhead_percent / 100,
@@ -906,7 +915,8 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
                         "reserve_capacity": reserve_capacity / 100,
                         "chargers": chargers,
                         "battery": battery,
-                        "bus_dict": bus_dict}
+                        "bus_dict": bus_dict,
+                        "windows": windows}
         results = run_init_feasibility(options_dict, ec_dict, num_buses)
         results['peak_passengers'] = peak_passengers
         out = dbc.Container(dbc.Row([

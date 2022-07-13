@@ -205,7 +205,7 @@ class base_problem():
                 model.Nc[i].fix(int(number[i]))
 
     def _charge_windows(self, windows):
-        tmp = np.repeat(windows, 60 / resolution)  # convert from hour windows to time slow windows
+        tmp = np.repeat(windows, 60 / self.resolution)  # convert from hour windows to time slow windows
         tmp = tmp.tolist() * 8
         tmp = tmp[:self.num_times]
         charge_windows = tmp
@@ -235,6 +235,10 @@ class base_problem():
             model.bv = pyo.Param(model.T, initialize=0.)
         else:
             model.bx = pyo.Var(model.T, domain=pyo.Reals, bounds=(-self.battery['power'], self.battery['power']))
+            if self.windows is not None:
+                for t in model.T:
+                    if not self.windows[t]:
+                        model.bx[t].fix(0)
             if self.battery['capacity']=='optim':
                 model.bcap = pyo.Var(domain=pyo.NonNegativeReals)
             else:
