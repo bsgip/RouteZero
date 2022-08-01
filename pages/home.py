@@ -491,12 +491,12 @@ def create_bus_options(advanced_options):
     return [
         html.H6("Bus options:"),
         dbc.Container([
-            dbc.Row([
-                dbc.Col("Max Passengers", width=6, align='right'),
-                dbc.Col(dbp.NumericInput(
-                id="max-passenger-count", value=70, stepSize=1, min=0, style={"width":"7rem"}
-            ),width=5, align="left")
-            ]),
+            # dbc.Row([
+            #     dbc.Col("Max Passengers", width=6, align='right'),
+            #     dbc.Col(dbp.NumericInput(
+            #     id="max-passenger-count", value=70, stepSize=1, min=0, style={"width":"7rem"}
+            # ),width=5, align="left")
+            # ]),
             dbc.Row([
                 dbc.Col("Battery capacity (kWh)", width=6, align="right"),
                 dbc.Col(dbp.NumericInput(
@@ -509,12 +509,12 @@ def create_bus_options(advanced_options):
                 id="charging-capacity-kw", value=300, stepSize=1, min=0, style={"width":"7rem"}),
                 width=5,align="left")
             ]),
-            dbc.Row([
-                dbc.Col("Gross mass (kg)", width=6, align="right"),
-                dbc.Col(dbp.NumericInput(
-                id="gross-mass-kg", value=18000, stepSize=1, min=0, style={"width":"7rem"})
-                ,width=5, align="left")
-            ]),
+            # dbc.Row([
+            #     dbc.Col("Gross mass (kg)", width=6, align="right"),
+            #     dbc.Col(dbp.NumericInput(
+            #     id="gross-mass-kg", value=18000, stepSize=1, min=0, style={"width":"7rem"})
+            #     ,width=5, align="left")
+            # ]),
             dbc.Collapse([
             dbc.Row([
                 dbc.Col("Charging efficiency", width=6, align="right"),
@@ -742,20 +742,19 @@ def show_bus_options_form(advanced_options):
      ServersideOutput("ec-store", "data"),
      ServersideOutput("route-summary-store", "data")],
     [Input("confirm-bus-options", "n_clicks")],
-    [State("max-passenger-count", "value"),
-     State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
-     State("gross-mass-kg", "value"), State("charging-efficiency", "value"),
+    [State("battery-capacity-kwh", "value"), State("charging-capacity-kw", "value"),
+     State("charging-efficiency", "value"),
      State("eol-capacity", "value"), State("gtfs-selector", "value"),
      State("route-selector", "value"), State("peak-passengers", "value"),
      State("deadhead", "value"), State("agency-selector", "value")],
     prevent_initial_callbacks=True
 )
-def predict_energy_usage(n_clicks, max_passengers, bat_capacity, charging_power,
-                       gross_mass, charging_eff, eol_capacity, gtfs_name, routes_sel,
+def predict_energy_usage(n_clicks, bat_capacity, charging_power,
+                    charging_eff, eol_capacity, gtfs_name, routes_sel,
                        peak_passengers, deadhead_percent, agency_name):
     if n_clicks:
-        bus_dict = {"max_passengers": max_passengers, "bat_capacity": bat_capacity,
-                    "charging_power": charging_power, "gross_mass": gross_mass,
+        bus_dict = {"max_passengers": 60, "bat_capacity": bat_capacity,
+                    "charging_power": charging_power, "gross_mass": 18000,
                     "charging_eff": charging_eff, "eol_capacity": eol_capacity}
         bus = AppData.get_bus(bus_dict)
         trips_data = AppData.read_gtfs_file(gtfs_name)
