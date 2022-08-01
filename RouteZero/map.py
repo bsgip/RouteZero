@@ -98,7 +98,7 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None, to
 
     ## create a map of total energy consumption
     m = folium.Map(location=[centroid_lat, centroid_lon],
-                   tiles='cartodbpositron', zoom_start=10)
+                   tiles='cartodbpositron', zoom_start=12)
     gdf.crs = {'init': 'epsg:4326'}
 
     # colorscale = branca.colormap.linear.YlGnBu_09.scale(min_val, max_val)
@@ -120,7 +120,6 @@ def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None, to
                 # "dashArray": '20, 20'
             }
 
-    # my code for lines
     geo_data = gdf.__geo_interface__
     folium.GeoJson(
         geo_data,
@@ -168,12 +167,14 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
 
-    trips_data = pd.read_csv('../data/gtfs/Tas_burnie/trip_data.csv')
+    name = 'Tas_launceston'
+
+    trips_data = pd.read_csv('../data/gtfs/'+name+'/trip_data.csv')
     trips_data['passengers'] = 38
 
     shape_ids = trips_data['shape_id'].astype('str')
 
-    shapes = gpd.read_file('../data/gtfs/Tas_burnie/shapes.shp')
+    shapes = gpd.read_file('../data/gtfs/'+name+'/shapes.shp')
     window = [5, 10]
     mode='max'
 

@@ -6,6 +6,7 @@ import srtm
 import geopy.distance
 from tqdm import tqdm
 from sklearn.metrics.pairwise import haversine_distances
+from shapely.geometry import LineString
 
 ## RouteZero modules
 import RouteZero.gtfs as gtfs
@@ -59,6 +60,7 @@ def _append_trip_patronage(routes, trips, patronage):
     :return: trips dataframe with passenger information appended
     """
     patronage_df = pd.DataFrame.from_dict(patronage)
+    routes['route_long_name'] = routes['route_long_name'].fillna(value='')
     patronage_df = patronage_df.astype({'route_short_name':routes['route_short_name'].dtype,'passengers':'int64'})
     tmp_df = pd.merge(routes[['route_short_name','route_id','agency_name','route_long_name']],patronage_df, how='left')
     return pd.merge(trips, tmp_df[['route_id','route_short_name','passengers','agency_name','route_long_name']])
@@ -278,13 +280,63 @@ def _elevation_from_shape(shapes):
 
     return elevation_profiles
 
+def offset_shape_geometries(shapes):
+    geometries = shapes['geometry'].values
+
+    new_geom = []
+    for g in tqdm(geometries, desc='offsetting shape geometries'):
+        x,y = g.xy
+
+        # df = pd.DataFrame.from_dict({'x':x.tolist(),'y':y.tolist()})
+        # df.drop_duplicates(inplace=True, ignore_index=True)
+        # x = df['x'].to_numpy()
+        # y = df['y'].to_numpy()
+        x = np.array(x.tolist())
+        y = np.array(y.tolist())
+
+        u = x[1:] - x[:-1]
+        v = y[1:] - y[:-1]
+        l = np.sqrt(u**2 + v**2)
+
+        # getting rid of duplicates
+        inds = np.argwhere(l <= 1e-12)
+        x = np.delete(x, inds)
+        y = np.delete(y, inds)
+        u = x[1:] - x[:-1]
+        v = y[1:] - y[:-1]
+        l = np.sqrt(u**2 + v**2)
+
+        uhat = u/l
+        vhat = v/l
+
+        u_perp = -vhat
+        v_perp = uhat
+
+        offset = 0.00005
+        x_diff = np.zeros(len(x))
+        y_diff = np.zeros(len(y))
+        x_diff[0] = u_perp[0]*offset
+        y_diff[0] = v_perp[0]*offset
+        x_diff[1:-1] = (u_perp[1:] + u_perp[:-1])/2*offset
+        y_diff[1:-1] = (v_perp[1:] + v_perp[:-1])/2*offset
+        x_diff[-1] = u_perp[-1] * offset
+        y_diff[-1] = v_perp[-1] * offset
+
+        x_new = x + x_diff
+        y_new = y + y_diff
+
+
+        new_geom.append(LineString([(xx) for xx in zip(x_new,y_new)]))
+
+    shapes['geometry'] = new_geom
+    return shapes
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
     # inpath = '../data/gtfs/act.zip'
     # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    name = 'greater_sydney_gtfs'
+    name = 'vic_regional_bus_gtfs'
     inpath = '../data/gtfs/'+name+'.zip'
 
 
@@ -299,8 +351,10 @@ if __name__=="__main__":
 
     patronage = {"route_short_name": route_short_names, "passengers":[38]*len(route_short_names)}
 
-    trip_summary = process(routes,trips, stop_times, stops, patronage, shapes)
+    trip_summary = process(routes, trips, stop_times, stops, patronage, shapes)
     times, buses_in_traffic = calc_buses_in_traffic(trip_summary)
+
+    shapes = offset_shape_geometries(shapes)        #offset routes to left so they display next to each other
 
 
 
@@ -310,13 +364,16 @@ if __name__=="__main__":
     plt.ylabel('# buses')
     plt.show()
     #
-    # trip_summary.to_csv('../data/gtfs/Tas_/trip_data.csv')
-    # shapes.to_file('../data/gtfs/act/shapes.shp')
 
-    # trip_summary.to_csv('../data/gtfs/leichhardt/trip_data.csv')
-    # shapes.to_file('../data/gtfs/leichhardt/shapes.shp')
+
     trip_summary.to_csv('../data/gtfs/'+name[:-5]+'/trip_data.csv')
     shapes.to_file('../data/gtfs/'+name[:-5]+'/shapes.shp')
 
+    print("{} trips in week".format(len(trips)))
     print("{} trips in summary".format(len(trip_summary)))
+    print("{:.2f}% success".format(len(trip_summary)/len(trips)*100))
+
+
+
+
 

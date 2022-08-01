@@ -21,96 +21,102 @@ def etl_bus_data():
         df = pd.read_csv(os.path.join(in_folder, file), parse_dates=['Unnamed: 0']).rename(columns={"Unnamed: 0":"datetime"}).set_index("datetime")
         df.dropna(inplace=True)
 
-        BUS_ID = df['BUS_ID'].unique().tolist()
-        assert len(BUS_ID)==1, ' There should only be one bus id per raw file'
+        bus_ids = df['BUS_ID'].unique().tolist()
 
-        if BUS_ID[0] in data_dict:
-            data_dict[BUS_ID[0]] = pd.concat([data_dict[BUS_ID[0]], df])
-        else:
-            data_dict[BUS_ID[0]] = df
+        for bus_id in bus_ids:
+            df_bus = df[df.BUS_ID==bus_id]
+            if bus_id in data_dict:
+                data_dict[bus_id] = pd.concat([data_dict[bus_id], df_bus])
+            else:
+                data_dict[bus_id] = df_bus
 
     for bus_id in data_dict:
         df = data_dict[bus_id].sort_index()
+        td = df.index.max()-df.index.min()
+        mins = int(td.total_seconds()/60)+1
+        N = len(df)
+        print("bus {} start {} end {} with {:.2f} percent complete data".format(bus_id, df.index.min(), df.index.max(),N/mins*100))
+
         df.to_csv(out_folder + str(bus_id) + '.csv')
 
 def etl_transport():
+    sheets = ["DATA SHEET 1", "DATA SHEET 2"]
     xls = pd.ExcelFile('../data/transport/transportNSWdata.xlsx')
-    all = pd.read_excel(xls, 'DATA SHEET 1')
-    count = 0
-    trip_dict = {}
-    REGOS = all['REGO'].unique().tolist()
 
-    for REGO in tqdm(REGOS):
-        # print(REGO)
-        single_bus = all[all.REGO==REGO].copy()
+    for k, sheet in enumerate(sheets):
+        all = pd.read_excel(xls, sheet)
 
-        single_bus['arrive_datetime'] = pd.to_datetime(single_bus['DATE'] + ' ' + single_bus['ACTUAL_ARRIVE_TIME'])
-        single_bus['depart_datetime'] = pd.to_datetime(single_bus['DATE'] + ' ' + single_bus['ACTUAL_DEPART_TIME'])
+        REGOS = all['REGO'].unique().tolist()
+        trip_dict = {}
+        count = 0
 
-        ROUTES = single_bus['ROUTE'].unique().tolist()
+        for REGO in tqdm(REGOS, desc="Extracting trip data by bus for data sheet {} of {}".format(k, len(sheets))):
+            single_bus = all[all.REGO==REGO].copy()
 
-        for ROUTE in ROUTES:
-            # print(ROUTE)
-            single_route = single_bus[single_bus.ROUTE==ROUTE].copy()
-            single_route = single_route.dropna()
+            single_bus['arrive_datetime'] = pd.to_datetime(single_bus['DATE'] + ' ' + single_bus['ACTUAL_ARRIVE_TIME'])
+            single_bus['depart_datetime'] = pd.to_datetime(single_bus['DATE'] + ' ' + single_bus['ACTUAL_DEPART_TIME'])
 
-            # get trip index
-            single_route.sort_values(by='arrive_datetime', inplace=True)
-            single_route['trip_num'] = (single_route['SEQ'].diff() < 0).astype(int).cumsum()
+            ROUTES = single_bus['ROUTE'].unique().tolist()
 
-            gb = single_route.groupby(by='trip_num')
+            for ROUTE in ROUTES:
+                # print(ROUTE)
+                single_route = single_bus[single_bus.ROUTE==ROUTE].copy()
+                single_route = single_route.dropna()
 
+                # get trip index
+                single_route.sort_values(by='arrive_datetime', inplace=True)
+                single_route['trip_num'] = (single_route['SEQ'].diff() < 0).astype(int).cumsum()
 
-            for (i,g) in gb:
-                g.dropna(inplace=True)
-                if not len(g):
-                    continue
-                if (len(g) == g['SEQ'].values[-1]) and (len(g) > 1):       # hopefully has all stops
-                    depart_datetime = g['depart_datetime'].values
-                    arrive_datetime = g['arrive_datetime'].values
-                    time_delta = arrive_datetime[1:] - depart_datetime[:-1]
-
-                    # replace <10 pass with 5
-
-                    inds = g['IN_TRANSIT_DEPART']=='<10'
-                    missing = np.sum(inds) / len(g)
-
-                    g.loc[g['IN_TRANSIT_DEPART']=='<10','IN_TRANSIT_DEPART'] = np.floor(10*np.random.rand(sum(g['IN_TRANSIT_DEPART']=='<10')))
-                    g['IN_TRANSIT_DEPART'] = pd.to_numeric(g['IN_TRANSIT_DEPART'])
-                    av_pass = np.average(g['IN_TRANSIT_DEPART'].values[:-1], weights=pd.to_timedelta(time_delta).total_seconds().values)
-                    sel = (~inds).values
-                    sel[-1] = False
-                    if sum(sel):
-                        pass_true_part = np.average(g.loc[sel,'IN_TRANSIT_DEPART'].values, weights=pd.to_timedelta(time_delta[sel[:-1]]).total_seconds().values)
-                        pass_true_weight = sum(pd.to_timedelta(time_delta[sel[:-1]]).total_seconds().values)/sum(pd.to_timedelta(time_delta).total_seconds().values)
-                    else:
-                        pass_true_part = 0
-                        pass_true_weight = 0
+                gb = single_route.groupby(by='trip_num')
 
 
-                    trip = {'start_time':depart_datetime[0],
-                            "end_time":arrive_datetime[-1],
-                            "pass_filled":av_pass,
-                            "duration":(pd.to_datetime(arrive_datetime[-1]) - pd.to_datetime(depart_datetime[0])).total_seconds(),
-                            "num_stops":g['SEQ'].values[-1],
-                            "direction":g['DIRECTION'].values[0],
-                            "REGO":REGO,
-                            "ROUTE":ROUTE,
-                            "missing_pass":missing,
-                            "pass_true_part":pass_true_part,
-                            "pass_true_weight":pass_true_weight}
+                for (i,g) in gb:
+                    g.dropna(inplace=True)
+                    if not len(g):
+                        continue
+                    if (len(g) == g['SEQ'].values[-1]) and (len(g) > 1):       # hopefully has all stops
+                        depart_datetime = g['depart_datetime'].values
+                        arrive_datetime = g['arrive_datetime'].values
+                        time_delta = arrive_datetime[1:] - depart_datetime[:-1]
 
-                    trip_dict[count] = trip
+                        # replace <10 pass with 5
 
-                    count += 1
+                        inds = g['IN_TRANSIT_DEPART']=='<10'
+                        missing = np.sum(inds) / len(g)
 
-    trip_df = pd.DataFrame.from_dict(trip_dict, orient='index')
+                        g.loc[g['IN_TRANSIT_DEPART']=='<10','IN_TRANSIT_DEPART'] = np.floor(10*np.random.rand(sum(g['IN_TRANSIT_DEPART']=='<10')))
+                        g['IN_TRANSIT_DEPART'] = pd.to_numeric(g['IN_TRANSIT_DEPART'])
+                        av_pass = np.average(g['IN_TRANSIT_DEPART'].values[:-1], weights=pd.to_timedelta(time_delta).total_seconds().values)
+                        sel = (~inds).values
+                        sel[-1] = False
+                        if sum(sel):
+                            pass_true_part = np.average(g.loc[sel,'IN_TRANSIT_DEPART'].values, weights=pd.to_timedelta(time_delta[sel[:-1]]).total_seconds().values)
+                            pass_true_weight = sum(pd.to_timedelta(time_delta[sel[:-1]]).total_seconds().values)/sum(pd.to_timedelta(time_delta).total_seconds().values)
+                        else:
+                            pass_true_part = 0
+                            pass_true_weight = 0
 
-    trip_df.to_csv('../data/transport/sheet1_trips.csv')
-    return trip_df
+                        trip = {'start_time':depart_datetime[0],
+                                "end_time":arrive_datetime[-1],
+                                "pass_filled":av_pass,
+                                "duration":(pd.to_datetime(arrive_datetime[-1]) - pd.to_datetime(depart_datetime[0])).total_seconds(),
+                                "num_stops":g['SEQ'].values[-1],
+                                "direction":g['DIRECTION'].values[0],
+                                "REGO":REGO,
+                                "ROUTE":ROUTE,
+                                "missing_pass":missing,
+                                "pass_true_part":pass_true_part,
+                                "pass_true_weight":pass_true_weight}
+
+                        trip_dict[count] = trip
+
+                        count += 1
+
+        trip_df = pd.DataFrame.from_dict(trip_dict, orient='index')
+        trip_df.to_csv('../data/transport/sheet{}_trips.csv'.format(k+1))
+    return None
 
 def etl_merge_transport_bus():
-    ## todo: try to improve elevation data somehow??
 
     trip_data_1 = pd.read_csv('../data/transport/sheet1_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
     trip_data_2 = pd.read_csv('../data/transport/sheet2_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
@@ -120,10 +126,8 @@ def etl_merge_transport_bus():
     bus_files = [filename for filename in os.listdir(bus_data_folder) if filename.endswith(".csv")]
     bus_data_ids = [x[:-4] for x in bus_files]
 
-    # REGOS = trip_data['REGO'].unique().tolist()
-    REGOS = ["MO8380", "MO8387"]        # The two we actually have data for
+    REGOS = trip_data['REGO'].unique().tolist()
 
-    # REGO = 'MO8387'
     for REGO in REGOS:
         print(REGO)
         single_bus_trips = trip_data[trip_data.REGO==REGO]
@@ -132,7 +136,7 @@ def etl_merge_transport_bus():
             data_start_date = bus_data.index[0]
             data_end_date = bus_data.index[-1]
 
-            for i in tqdm(range(len(single_bus_trips))):
+            for i in tqdm(range(len(single_bus_trips)), desc="merging data for bus {}".format(REGO)):
                 trip = single_bus_trips.iloc[i]
                 start_dt = trip['start_time']
                 end_dt = trip['end_time']
@@ -209,18 +213,18 @@ def etl_merge_transport_bus():
                     trip_data.loc[trip.name, "path_x"] = path_x
                     trip_data.loc[trip.name, "path_y"] = path_y
 
-
-
-    trip_data[trip_data["delta SOC (%)"] <= 0] = np.nan      # should always be using energy
+    # trip_data[trip_data["delta SOC (%)"] <= 0] = np.nan      # should always be using energy # todo: check impact of this
     trip_data.dropna(inplace=True)
     trip_data.reset_index(inplace=True)
-    trip_data.to_csv("../data/trip_data_merged.csv")
+    trip_data.to_csv("../data/trip_data.csv")
+    print("Trip data merged for a total of {} trips".format(len(trip_data)))
+
 
 
 def etl_add_historical_temps():
     aest = pytz.timezone("Australia/Sydney")
 
-    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
     trip_data['start_time'] = trip_data['start_time'].dt.tz_localize(aest)
     trip_data['end_time'] = trip_data['end_time'].dt.tz_localize(aest)
     trip_data.dropna(inplace=True)                                  # shouldn't need this
@@ -262,7 +266,7 @@ def etl_add_historical_temps():
     dists = haversine_distances(X, Y)
     end_stations = np.argmin(dists, axis=1)
 
-    for i in tqdm(range(len(trip_data))):
+    for i in tqdm(range(len(trip_data)), desc="Adding historical temperature record to trips"):
         trip = trip_data.iloc[i]
 
         start_dt = trip['start_time']
@@ -289,7 +293,7 @@ def etl_add_historical_temps():
 
     trip_data["start_time"] = trip_data["start_time"].dt.tz_localize(None)
     trip_data["end_time"] = trip_data["end_time"].dt.tz_localize(None)
-    trip_data.to_csv("../data/trip_data_merged.csv")
+    trip_data.to_csv("../data/trip_data.csv")
 
 def etl_average_temperature_profile():
     weather_df = pd.read_csv("../data/routezero_weather.csv")
@@ -335,8 +339,8 @@ def etl_average_temperature_profile():
     print(av)
 
 def etl_add_estimated_temp():
-    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
-    for i in tqdm(range(len(trip_data))):
+    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    for i in tqdm(range(len(trip_data)), "Filling missing temp with estimated temperature based on daily min and max"):
         trip = trip_data.iloc[i]
         index = trip_data.index.values[i]
         if not trip["temp_data_exist"]:
@@ -356,11 +360,11 @@ def etl_add_estimated_temp():
 
             trip_data.loc[index, "temp"] = temp
 
-    trip_data.to_csv("../data/trip_data_merged.csv")
+    trip_data.to_csv("../data/trip_data.csv")
 
 
 def analyse_gps_and_shape():
-    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
     gtfs_trip_data = pd.read_csv("../data/gtfs/greater_sydney/trip_data.csv")
     shapes = gpd.read_file("../data/gtfs/greater_sydney/shapes.shp")
@@ -368,8 +372,9 @@ def analyse_gps_and_shape():
     dist_away = []
     gtfs_grad = []
     gtfs_shape_ids = []
-    for i in range(len(trip_data)):
-        trip = trip_data.iloc[i]
+    gtfs_length = []
+    for k in tqdm(range(len(trip_data))):
+        trip = trip_data.iloc[k]
         route = trip["ROUTE"]
 
         path_x = [float(x) for x in trip["path_x"].split(",")]
@@ -398,107 +403,126 @@ def analyse_gps_and_shape():
             dist_list.append(dists.min(axis=1).mean())
 
         inds_sort = np.argsort(dist_list)
+        trip_dist = trip['distance (m)']
+        shape_lengths = subset_shapes['length (m)'].to_numpy()
+        ii_fallback = None
+        ii_best = None
         for ii in inds_sort:
-            if start_start[ii] < start_end[ii]:
-                break
+            if (start_start[ii] < start_end[ii]):
+                ii_fallback = ii
+                if np.abs(trip_dist - shape_lengths[ii]) < 2000:
+                    ii_best = ii
+                    break
 
-        i_closest = ii
-        min_dist = dist_list[ii]
-        closest_xy = xy_list[ii]
-
-        if min_dist > 2.5:
-            plt.plot(closest_xy[0], closest_xy[1])
-            plt.plot(path_x, path_y, linestyle='--', marker='x', color='k')
-            plt.title("trip" + str(i) + " av_dist " + str(min_dist) + " speed " + str(trip["speed (m/s)"] * 3.6))
-            plt.show()
+        if ii_best:
+            i_closest = ii_best
+        elif ii_fallback:
+            i_closest = ii_fallback
         else:
-            plt.clf()
+            i_closest = inds_sort[0]
+        min_dist = dist_list[i_closest]
 
         ind = subset_shapes.index.values[i_closest]
         s_id = subset_shapes.loc[ind, "shape_id"]
         gtfs_grad.append(gtfs_trip_data[gtfs_trip_data["shape_id"]==s_id]["average_gradient_%"].values[0])
         gtfs_shape_ids.append(s_id)
-        dist_away.append(i_closest)
+        dist_away.append(min_dist)
+        gtfs_length.append(subset_shapes.loc[ind, "length (m)"])
 
-    plt.hist(dist_away, bins=30)
+    plt.hist(dist_away, bins=30, range=[0,15])
     plt.show()
 
+    trip_data['dist from shape id'] = dist_away
+    trip_data['gradient of shape id'] = gtfs_grad
+    trip_data['gtfs shape id'] = gtfs_shape_ids
+    trip_data['gtfs length (m)'] = gtfs_length
 
 
-    return dist_away, gtfs_grad, gtfs_shape_ids
+    return trip_data
 
 if __name__=="__main__":
     # etl_transport()                   # 1
     # etl_bus_data()                    # 2
-    # etl_merge_transport_bus()         # 3
-    # etl_add_historical_temps()        # 4
-    # etl_add_estimated_temp()          # 5
-    dist_away, gtfs_grad, gtfs_shape_ids = analyse_gps_and_shape()             # finally do this, and then do something with any that lok bad
+    etl_merge_transport_bus()         # 3
+    etl_add_historical_temps()        # 4
+    etl_add_estimated_temp()          # 5
 
-    trip_data = pd.read_csv("../data/trip_data_merged.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = analyse_gps_and_shape()             # finally do this, and then do something with any that lok bad
+    print("removing {} trips as too far from shape id".format((trip_data["dist from shape id"] > 5).sum()))
+    trip_data = trip_data[trip_data["dist from shape id"] < 5]
+    length_diff = trip_data['distance (m)'] - trip_data['gtfs length (m)']
+    print("removing {} trips as having too great a difference in length from shape id".format(np.sum(np.abs(length_diff)>3000)))
+    trip_data = trip_data[np.abs(length_diff)<=3000]
+
+    # add bus type (BYD OR )
+    # convert percent SOC used to energy and energy per km
+    trip_data = trip_data.copy()
+    trip_data["bus type"] = ""
+    trip_data["ec (kWh)"] = 0
+
+    byd_bus_df = pd.read_csv("../data/BYD_BUS_IDS.csv")
+    byd_bus_regos =["MO"+ str(s) for s in byd_bus_df['BYD_BUS_IDS'].to_list()]
+    trip_data.loc[trip_data["REGO"].isin(byd_bus_regos), "bus type"] = "BYD"
+    trip_data.loc[~trip_data["REGO"].isin(byd_bus_regos), "bus type"] = "Yutong"
 
 
-    plt.scatter(trip_data['gradient (%)'],gtfs_grad)
-    plt.xlabel("bus data gradient (%)")
-    plt.ylabel("gtfs data gradient (%)")
-    plt.title("bus data gradient vs gtfs data gradient")
-    # plt.plot(gtfs_grad)
-    plt.show()
 
-    1/0
-    inds = trip_data['start SOC (%)'] > 97
 
-    trip_data_f = trip_data[inds]
-    trip_data_nf = trip_data[~inds]
+    byd_cap = 368       #kWh
+    yutong_cap = 422    #kWh
+
+    trip_data.loc[trip_data["bus type"]=="BYD",'ec (kWh)'] = trip_data[trip_data["bus type"]=="BYD"]["delta SOC (%)"]/100 * byd_cap
+    trip_data.loc[trip_data["bus type"]=="Yutong",'ec (kWh)'] = trip_data[trip_data["bus type"]=="Yutong"]["delta SOC (%)"]/100 * yutong_cap
+
+    trip_data["ec/km (kWh/km)"] = trip_data["ec (kWh)"]/trip_data['distance (m)']*1000
+
+    trip_data.to_csv("../data/trip_data.csv")
+
+    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+
     #
-    plt.subplot(3,3,1)
-    plt.scatter(trip_data.loc[~inds,'num_stops']/trip_data.loc[~inds,'distance (m)']*1000, 4.2*trip_data.loc[~inds,'delta SOC (%)']/trip_data.loc[~inds,'distance (m)']*1000)
-    plt.scatter(trip_data.loc[inds,'num_stops']/trip_data.loc[inds,'distance (m)']*1000, 4.2*trip_data.loc[inds,'delta SOC (%)']/trip_data.loc[inds,'distance (m)']*1000)
-    plt.xlabel("stops/km")
-    plt.ylabel("ec/km")
-
-    plt.subplot(3,3,2)
-    plt.scatter(trip_data_nf['speed (m/s)'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
-    plt.scatter(trip_data_f['speed (m/s)'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
-    plt.xlabel("speed")
-    plt.ylabel("ec/km")
-
-    plt.subplot(3,3,3)
-    plt.scatter(trip_data_nf['pass_true_part'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
-    plt.scatter(trip_data_f['pass_true_part'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
-    plt.xlabel("av pass")
-    plt.ylabel("ec/km")
-
-    plt.subplot(3,3,4)
-    plt.scatter(trip_data_nf['gradient (%)'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
-    plt.scatter(trip_data_f['gradient (%)'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
-    plt.xlabel("gradient (%)")
-    plt.ylabel("ec/km")
-
-
-    plt.subplot(3,3,5)
-    plt.scatter(trip_data.loc[~inds,'start SOC (%)'], 4.2*trip_data.loc[~inds,'delta SOC (%)']/trip_data.loc[~inds,'distance (m)']*1000)
-    plt.scatter(trip_data.loc[inds,'start SOC (%)'], 4.2*trip_data.loc[inds,'delta SOC (%)']/trip_data.loc[inds,'distance (m)']*1000)
-    plt.xlabel("start_soc")
-    plt.ylabel("ec/km")
-
-    plt.subplot(3,3,6)
-    plt.scatter(trip_data_nf['distance (m)'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
-    plt.scatter(trip_data_f['distance (m)'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
-    plt.xlabel("distance")
-    plt.ylabel("ec/km")
-
-    plt.subplot(3,3,7)
-    plt.scatter(trip_data_nf['temp'], 4.2*trip_data_nf['delta SOC (%)']/trip_data_nf['distance (m)']*1000)
-    plt.scatter(trip_data_f['temp'], 4.2*trip_data_f['delta SOC (%)']/trip_data_f['distance (m)']*1000)
-    plt.xlabel("temperature")
-    plt.ylabel("ec/km")
-
-    plt.subplot(3,3,8)
-    plt.scatter(gtfs_grad, 4.2*trip_data['delta SOC (%)']/trip_data['distance (m)']*1000)
-    plt.xlabel("gtfs gradient (%)")
-    plt.ylabel("ec/km")
-
-    plt.tight_layout()
-    plt.show()
-
+    # # #
+    # plt.scatter(trip_data['gradient (%)'],trip_data["gradient of shape id"])
+    # plt.xlabel("bus data gradient (%)")
+    # plt.ylabel("gtfs data gradient (%)")
+    # plt.title("bus data gradient vs gtfs data gradient")
+    # plt.show()
+    #
+    # independent = ["stops/km", "gradient (%)", "temp", "speed (m/s)", "pass_true_part", "start SOC (%)"]
+    #
+    # for i, var in enumerate(independent):
+    #     plt.subplot(3,2,i+1)
+    #     plt.hist(trip_data[var], bins=30)
+    #     plt.xlabel(var)
+    #
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # plt.subplot(3, 2, 6)
+    # plt.hist(trip_data["ec/km (kWh/km)"])
+    # plt.xlabel("ec/km (kWh/km)")
+    #
+    # shape_ids = trip_data["gtfs shape id"].unique().tolist()
+    #
+    # bins = 4
+    # bin_ranges = {"stops/km":np.linspace(2, 4, bins+1),
+    #               "gradient (%)":np.linspace(-2, 1.5, bins+1),
+    #               "temp":np.linspace(10, 25, bins+1),
+    #               "speed (m/s)":np.linspace(2, 8, bins+1),
+    #               "start SOC (%)":np.linspace(65, 100, bins+1)}
+    #
+    # var = "start SOC (%)"
+    # for i in range(bins):
+    #     tmp = trip_data.copy()
+    #     for key in bin_ranges:
+    #         if key != var:
+    #             tmp = tmp[(tmp[key] < bin_ranges[key][i+1]) & (tmp[key] > bin_ranges[key][i])]
+    #
+    #     if len(tmp) > 10:
+    #         plt.scatter(tmp[var],tmp["ec/km (kWh/km)"])
+    #         plt.xlabel(var)
+    #         plt.ylabel("ec/km (kWh/km)")
+    #         plt.show()
+    #
+    #
+    #
