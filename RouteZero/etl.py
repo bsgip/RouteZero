@@ -17,7 +17,7 @@ def etl_bus_data():
     files = [filename for filename in os.listdir(in_folder) if filename.endswith(".csv")]
 
     data_dict = {}
-    for file in tqdm(files):
+    for file in tqdm(files, desc="processing raw bus data files"):
         df = pd.read_csv(os.path.join(in_folder, file), parse_dates=['Unnamed: 0']).rename(columns={"Unnamed: 0":"datetime"}).set_index("datetime")
         df.dropna(inplace=True)
 
@@ -373,7 +373,7 @@ def analyse_gps_and_shape():
     gtfs_grad = []
     gtfs_shape_ids = []
     gtfs_length = []
-    for k in tqdm(range(len(trip_data))):
+    for k in tqdm(range(len(trip_data)), desc="comparing gps tracking to gtfs shape files"):
         trip = trip_data.iloc[k]
         route = trip["ROUTE"]
 
@@ -442,7 +442,7 @@ def analyse_gps_and_shape():
 
 if __name__=="__main__":
     # etl_transport()                   # 1
-    # etl_bus_data()                    # 2
+    etl_bus_data()                    # 2
     etl_merge_transport_bus()         # 3
     etl_add_historical_temps()        # 4
     etl_add_estimated_temp()          # 5

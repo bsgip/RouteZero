@@ -5,8 +5,10 @@ from feature_engine.selection import (
     DropFeatures
 )
 import numpy as np
+import json
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
+
 
 class Passenger_imputer():
     """ imputes missing passenger values """
@@ -57,7 +59,8 @@ class Add_soc_full():
         return self
 
     def transform(self, X):
-        X["start full"] = X["start SOC (%)"] > 97
+        X["soc > 97"] = X["start SOC (%)"] > 97
+        # X["soc > 95"] = (X["start SOC (%)"] >= 93) & (X["start SOC (%)"] < 97)
         return X
 
 class Feature_square():
@@ -83,15 +86,29 @@ class Select_features():
     def fit(self, X, y=None):
         return self
 
-    def Transform(self, X):
+    def transform(self, X):
         X = X[self.variables].copy()
         return X
 
+# class Reorder():
+#     def __init__(self, order):
+#         self.order = order
+#
+#     def fit(self, X, y=None):
+#         return self
+#
+#     def transform(self, X):
+#         return X[self.order]
+
+
 class BayesianLinearRegression():
     """ Fits a linear model using bayesian regression"""
-    def __init__(self, prior_std=10, meas_std=0.1):
+    def __init__(self, prior_std=10, meas_std=0.1, regressor_vars=None):
         self.prior_std = prior_std
         self.meas_std = meas_std
+        self.regressor_vars = regressor_vars
+        self.params = None
+        self.post_var = None
 
     def fit(self, X, y=None):
         X = X.to_numpy().astype(float)
@@ -102,6 +119,8 @@ class BayesianLinearRegression():
         # self.A = X.T @ X / sigma ** 2 + np.diag(1 / prior_var)
         self.params = params
         self.post_var = post_var
+
+
         return self
 
     def predict(self, X):
@@ -110,14 +129,32 @@ class BayesianLinearRegression():
         pred_std = np.sqrt(np.diag(X @ self.post_var @ X.T))
         return y, pred_std
 
+    def save(self, filename):
+        tmp = self.__dict__
+        for key in tmp:
+            if isinstance(tmp[key],np.ndarray):
+                tmp[key] = tmp[key].tolist()
+        with open(filename, 'w') as f:
+            json.dump(tmp, f)
 
+    def load(self, filename):
+        with open(filename) as f:
+            tmp = json.load(f)
+            for key in tmp:
+                if (key=="params") or (key=="post_var"):
+                    setattr(self, key, np.array(tmp[key]))
+                else:
+                    setattr(self, key, tmp[key])
+        return self
 
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
     trip_data = pd.read_csv("../data/trip_data_outliers_removed.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
-    INDEPENDENT_VARS = ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)", "passengers imputed", "start SOC (%)", "start full", "temp_square",]
+    INDEPENDENT_VARS = ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)",
+                        "passengers imputed", "start SOC (%)", "soc > 97", "temp_square",
+                        "gradient (%)_square"]
     TARGET = ["ec/km (kWh/km)"]
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -136,7 +173,9 @@ if __name__=="__main__":
         ("kmph speed", Add_kmph()),
         ("soc full indicator", Add_soc_full()),
         ("squared features", Feature_square(variables=["temp","gradient (%)"])),
-        ("drop features", DropFeatures(FEATURES_TO_DROP)),
+        ("select features in order", Select_features(variables=INDEPENDENT_VARS))
+        # ("drop features", DropFeatures(FEATURES_TO_DROP)),
+        # ("reorder")
         # ("linear regression model", LinearRegression(fit_intercept=False))
         ##
     ])
@@ -149,8 +188,15 @@ if __name__=="__main__":
     X_train = ebus_pipe.transform(X_train)
     X_test = ebus_pipe.transform(X_test)
 
-    model = BayesianLinearRegression(meas_std=0.27)
-    model.fit(X_train, y_train)
+    model = BayesianLinearRegression(meas_std=0.27, regressor_vars=X_train.columns.tolist())
+
+    model.load("../data/bayes_lin_reg_model.json")
+    # model.fit(X_train, y_train)
+
+    # save model
+    # model.save("../data/bayes_lin_reg_model.json")
+
+
 
     y_train_pred, y_train_std = model.predict(X_train)
 
@@ -170,7 +216,6 @@ if __name__=="__main__":
     plt.tight_layout()
     plt.show()
 
-
     y_test_pred, y_test_std = model.predict(X_test)
     error = (y_test.to_numpy() - y_test_pred)
     plt.hist(error, bins=30)
@@ -183,4 +228,36 @@ if __name__=="__main__":
     out = tmp_range * -0.07 + tmp_range**2*0.002
     plt.plot(tmp_range, out)
     plt.title("offset energy consumption by temperature plot")
+    plt.show()
+
+    tmp = X_train.drop(columns=["gradient (%)_square", "temp_square", "soc > 97", "constant"])
+    input_mean = tmp.mean()
+    input_max = tmp.max()
+    input_min = tmp.min()
+    vars = tmp.columns.tolist()
+
+
+    for i, var in enumerate(vars):
+        trial = pd.DataFrame(columns=vars)
+        trial[var] = np.linspace(input_min[var],input_max[var])
+        for var2 in vars:
+            if var2 != var:
+                trial[var2] = input_mean[var2]
+
+        trial = Add_constant().transform(trial)
+        trial = Add_soc_full().transform(trial)
+        trial = Feature_square(variables=["temp", "gradient (%)"]).transform(trial)
+        trial = trial[INDEPENDENT_VARS]
+
+        y_trial, y_trial_std = model.predict(trial)
+
+        plt.subplot(3,2,i+1)
+        plt.fill_between(trial[var], (y_trial.flatten() - 2*y_trial_std), y_trial.flatten()+2*y_trial_std, alpha=0.3, label="95% CI")
+        plt.plot(trial[var], y_trial, label='mean sensitivity')
+        plt.legend()
+
+        plt.xlabel(var)
+        plt.ylabel('ec/km (kwh/km)')
+
+    plt.tight_layout()
     plt.show()
