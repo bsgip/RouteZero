@@ -1,13 +1,8 @@
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
-from feature_engine.selection import (
-    DropFeatures
-)
 import numpy as np
 import json
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
 
 
 class Passenger_imputer():
@@ -90,15 +85,6 @@ class Select_features():
         X = X[self.variables].copy()
         return X
 
-# class Reorder():
-#     def __init__(self, order):
-#         self.order = order
-#
-#     def fit(self, X, y=None):
-#         return self
-#
-#     def transform(self, X):
-#         return X[self.order]
 
 
 class BayesianLinearRegression():
@@ -116,7 +102,6 @@ class BayesianLinearRegression():
         prior_var = self.prior_std**2
         params = np.linalg.solve((X.T @ X / sigma ** 2 + np.eye(X.shape[1]) / prior_var), X.T @ y / sigma ** 2)
         post_var = np.linalg.inv(X.T @ X / sigma ** 2 + np.eye(X.shape[1])/prior_var)
-        # self.A = X.T @ X / sigma ** 2 + np.diag(1 / prior_var)
         self.params = params
         self.post_var = post_var
 
@@ -153,7 +138,7 @@ if __name__=="__main__":
     trip_data = pd.read_csv("../data/trip_data_outliers_removed.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
     INDEPENDENT_VARS = ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)",
-                        "passengers imputed", "start SOC (%)", "soc > 97", "temp_square",
+                        "average_passengers", "start SOC (%)", "soc > 97", "temp_square",
                         "gradient (%)_square"]
     TARGET = ["ec/km (kWh/km)"]
 
@@ -168,7 +153,7 @@ if __name__=="__main__":
     FEATURES_TO_DROP = list(set(trip_data.columns.tolist()) - set(INDEPENDENT_VARS+TARGET))
 
     ebus_pipe = Pipeline([
-        ("passenger imputation", Passenger_imputer()),
+        # ("passenger imputation", Passenger_imputer()),
         ("add constant", Add_constant()),
         ("kmph speed", Add_kmph()),
         ("soc full indicator", Add_soc_full()),
@@ -206,7 +191,7 @@ if __name__=="__main__":
     plt.show()
     print("train prediction error std was {}".format(error.std()))
 
-    PLOT_VARS = ["start SOC (%)", "gradient (%)", "temp", "passengers imputed", "stops/km", "speed (km/h)"]
+    PLOT_VARS = ["start SOC (%)", "gradient (%)", "temp", "average_passengers", "stops/km", "speed (km/h)"]
 
     for i, var in enumerate(PLOT_VARS):
         plt.subplot(3,2,i+1)

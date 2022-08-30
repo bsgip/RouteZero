@@ -28,19 +28,13 @@ def add_road_condition(trip_data, road_condition):
 
 
 def extract_model_Y_X(trip_data):
-    X = trip_data[["constant","gradient (%)", "passengers_imputed", "stops/km",
+    X = trip_data[["constant","gradient (%)", "average_passengers", "stops/km",
                    "speed (km/h)", "start SOC (%)", "road condition", "driver aggressiveness", "temp"]].to_numpy()
-    # X = trip_data[["constant","gradient of shape id", "passengers_imputed", "stops/km",
-                   # "speed (m/s)", "start SOC (%)", "road condition", "driver aggressiveness", "temp"]].to_numpy()   # this seems to increase bias but leave standard deviation teh same roughly
     Y = trip_data[['ec/km (kWh/km)']].to_numpy().flatten()
-    # Y = (trip_data["ec (kWh)"]/trip_data['gtfs length (m)']*1000).to_numpy()    # this reduces teh standard deviation, but increases the bias
     return X, Y
 
-# ['average_gradient_%','passengers','stops_per_km','average_speed_kmh']
 
 if __name__=="__main__":
-    # todo: work out which ones are clearly outliers
-    # todo: remove these and then fit from scratch
 
     import matplotlib.pyplot as plt
     trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
@@ -54,7 +48,7 @@ if __name__=="__main__":
     # model = Models.LinearRegressionAbdelatyModel()
     model = Models.LinearRegMod()
 
-    trip_data = impute_missing_passengers(trip_data)
+    # trip_data = impute_missing_passengers(trip_data)
     trip_data = add_constant(trip_data)
     trip_data = add_kmph(trip_data)
     trip_data = add_road_condition(trip_data, road_condition=road_condition)
@@ -113,7 +107,7 @@ if __name__=="__main__":
     plt.ylabel("Y-Yhat (kWh/km)")
     plt.show()
 
-    plt.scatter(trip_data["passengers_imputed"], errors, marker='.')
+    plt.scatter(trip_data["average_passengers"], errors, marker='.')
     plt.title("error by imputed passengers")
     plt.xlabel("passengers")
     plt.ylabel("Y-Yhat (kWh/km)")
@@ -148,77 +142,4 @@ if __name__=="__main__":
 
     trip_data_outliers_removed.drop(columns=["index", "road condition", "driver aggressiveness"])
     trip_data_outliers_removed.to_csv("../data/trip_data_outliers_removed.csv")
-
-    # 1/0
-    # ############################################
-    #
-    # byd_trip_data = trip_data[trip_data["bus type"]=="BYD"]
-    # byd_sochigh_data = byd_trip_data[byd_trip_data['start SOC (%)'] > 95]
-    # byd_soclow_data = byd_trip_data[byd_trip_data['start SOC (%)'] <= 95]
-    #
-    # X, Y = extract_model_Y_X(byd_sochigh_data)
-    # Ypred = model._predict(X)
-    # errors = Y-Ypred
-    # print("BYD buses with start SOC > 95:")
-    # print("mean error: {}".format(errors.mean()))
-    # print("std errors: {}".format(errors.std()))
-    #
-    # plt.subplot(2, 2, 1)
-    # plt.hist(errors, bins=30, range=[-1.5,1.5])
-    # plt.xlabel("error (kWh/km)")
-    # plt.title("BYD buses with start SOC > 95")
-    #
-    # ############################################
-    #
-    # X, Y = extract_model_Y_X(byd_soclow_data)
-    # Ypred = model._predict(X)
-    # errors = Y-Ypred
-    # print("BYD buses with start SOC <= 95:")
-    # print("mean error: {}".format(errors.mean()))
-    # print("std errors: {}".format(errors.std()))
-    # #
-    # plt.subplot(2, 2, 2)
-    # plt.hist(errors, bins=30, range=[-1.5,1.5])
-    # plt.xlabel("error (kWh/km)")
-    # plt.title("BYD buses with start SOC <= 95")
-    #
-    # ############################################
-    #
-    # yutong_trip_data = trip_data[trip_data["bus type"]=="Yutong"]
-    # yutong_sochigh_data = yutong_trip_data[yutong_trip_data['start SOC (%)'] > 95]
-    # yutong_soclow_data = yutong_trip_data[yutong_trip_data['start SOC (%)'] <= 95]
-    #
-    # X, Y = extract_model_Y_X(yutong_sochigh_data)
-    # Ypred = model._predict(X)
-    # errors = Y-Ypred
-    # print("Yutong buses with start SOC > 95:")
-    # print("mean error: {}".format(errors.mean()))
-    # print("std errors: {}".format(errors.std()))
-
-    # plt.subplot(2, 2, 3)
-    # plt.hist(errors, bins=30, range=[-1.5,1.5])
-    # plt.xlabel("error (kWh/km)")
-    # plt.title("Yutong buses with start SOC > 95")
-    #
-    #
-    # ############################################
-    # X, Y = extract_model_Y_X(yutong_soclow_data)
-    # Ypred = model._predict(X)
-    # errors = Y - Ypred
-    # print("Yutong buses with start SOC <= 95:")
-    # print("mean error: {}".format(errors.mean()))
-    # print("std errors: {}".format(errors.std()))
-    # #
-    # plt.subplot(2, 2, 4)
-    # plt.hist(errors, bins=30, range=[-1.5,1.5])
-    # plt.xlabel("error (kWh/km)")
-    # plt.title("Yutong buses with start SOC <= 95")
-    #
-    # plt.tight_layout()
-    # plt.show()
-
-    # thoughts,
-    # modify the SOC coefficient and add soc_full as a parameter
-    # some adjustment based on mass
-    # constant value shift
 
