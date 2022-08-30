@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 from scipy.interpolate import interp1d
+import json
+import time
+
 
 """
 
@@ -8,6 +11,196 @@ from scipy.interpolate import interp1d
 
 """
 
+# ["constant", "stops/km", "gradient (%)", "temp", "speed (km/h)",
+# "average_passengers", "start SOC (%)", "soc > 97", "temp_square",
+# "gradient (%)_square"]
+class PredictionPipe():
+    "pipeline to transform and make predictions on the gtfs and user supplied data"
+    def __init__(self, saved_params_file="../data/bayes_lin_reg_model.json"):
+        self.model = BayesianLinearRegression()
+        self.model.load(filename=saved_params_file)
+        self.add_constant = Add_constant()
+        self.add_soc_full = Add_soc_full()
+        self.feature_square = Feature_square(["max_temp", "min_temp","average_gradient_%"])
+        self.select_features_max_temp = Select_features(["constant", "stops_per_km", "average_gradient_%",
+                                                        "max_temp", "average_speed_kmh", "passengers",
+                                                        "start SOC (%)", "soc > 97", "max_temp_square",
+                                                        "average_gradient_%_square"])
+        self.select_features_min_temp = Select_features(["constant", "stops_per_km", "average_gradient_%",
+                                                        "min_temp", "average_speed_kmh", "passengers",
+                                                        "start SOC (%)", "soc > 97", "min_temp_square",
+                                                        "average_gradient_%_square"])
+
+
+    def add_soc(self, data, bus):
+        soc = bus.get_soc_percent()
+        data["start SOC (%)"] = soc
+        return data
+
+    def _transform_data(self, data, bus):
+        data = self.add_constant.transform(data)
+        data = self.feature_square.transform(data)
+        data = self.add_soc(data, bus)
+        data = self.add_soc_full.transform(data)
+        return data
+
+    def predict_worst_case(self, trip_data, bus):
+        trip_data = self._transform_data(trip_data.copy(), bus)
+        distance = trip_data['trip_distance'].to_numpy() / 1000
+        X_max_temp = self.select_features_max_temp.transform(trip_data)
+        X_min_temp = self.select_features_min_temp.transform(trip_data)
+        y_max_temp, y_max_temp_std = self.model.predict(X_max_temp)
+        y_min_temp, y_min_temp_std = self.model.predict(X_min_temp)
+        # 95% confidence conservative upper value
+        y_max_temp_conf = y_max_temp.flatten() + 2 * y_max_temp_std
+        y_min_temp_conf = y_min_temp.flatten() + 2 * y_min_temp_std
+
+        ec_km = np.maximum(y_max_temp_conf, y_min_temp_conf)
+        ec_total = ec_km * distance
+        return ec_km, ec_total
+
+
+
+
+# new model class
+class BayesianLinearRegression():
+    """ Fits a linear model using bayesian regression
+        Expects the following features in order
+        ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)",
+                        "average_passengers", "start SOC (%)", "soc > 97", "temp_square",
+                        "gradient (%)_square"]
+    """
+
+    def __init__(self, prior_std=10, meas_std=0.1, regressor_vars=None):
+        self.prior_std = prior_std
+        self.meas_std = meas_std
+        self.regressor_vars = regressor_vars
+        self.params = None
+        self.post_var = None
+
+    def fit(self, X, y=None):
+        X = X.to_numpy().astype(float)
+        sigma = self.meas_std
+        prior_var = self.prior_std ** 2
+        params = np.linalg.solve((X.T @ X / sigma ** 2 + np.eye(X.shape[1]) / prior_var), X.T @ y / sigma ** 2)
+        post_var = np.linalg.inv(X.T @ X / sigma ** 2 + np.eye(X.shape[1]) / prior_var)
+        self.params = params
+        self.post_var = post_var
+
+        return self
+
+    def predict(self, X):
+        X = X.to_numpy().astype(float)
+        y = X @ self.params
+
+        # pred_std = np.sqrt(np.diag(X @ self.post_var @ X.T))
+        # fast way of getting the diagonal standard deviations
+        pred_std = np.sqrt((X @ self.post_var * X).sum(axis=1))
+
+        return y, pred_std
+
+    def save(self, filename):
+        tmp = self.__dict__
+        for key in tmp:
+            if isinstance(tmp[key], np.ndarray):
+                tmp[key] = tmp[key].tolist()
+        with open(filename, 'w') as f:
+            json.dump(tmp, f)
+
+    def load(self, filename):
+        with open(filename) as f:
+            tmp = json.load(f)
+            for key in tmp:
+                if (key == "params") or (key == "post_var"):
+                    setattr(self, key, np.array(tmp[key]))
+                else:
+                    setattr(self, key, tmp[key])
+        return self
+
+
+# what data do we have that we need to extract
+# - min_temp and max_temp
+# - ['average_gradient_%','passengers','stops_per_km','average_speed_kmh']
+# what features we need to add
+# - constant, soc > 97%, temp_square, gradient_square
+
+
+# Feature transformers
+class Add_constant():
+    """ Adds a constant (1) value for regression"""
+
+    def __init__(self):
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X["constant"] = 1.
+        return X
+
+
+class Add_kmph():
+    """ add kmph speed"""
+
+    def __init__(self):
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X["speed (km/h)"] = X["speed (m/s)"] * 3.6
+        return X
+
+
+class Add_soc_full():
+    """ add state of charge full indicator variable"""
+
+    def __init__(self):
+        pass
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X["soc > 97"] = X["start SOC (%)"] > 97
+        return X
+
+
+class Feature_square():
+    """ adds squared value of a feature """
+
+    def __init__(self, variables):
+        if not isinstance(variables, list):
+            raise ValueError('variables should be a list')
+        self.variables = variables
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        for var in self.variables:
+            X[var + "_square"] = X[var] ** 2
+        return X
+
+
+class Select_features():
+    """ keep only specified subset of features"""
+
+    def __init__(self, variables):
+        self.variables = variables
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        X = X[self.variables].copy()
+        return X
+
+
+
+# old model class
 class Model:
     """
         parent class for energy models
@@ -22,19 +215,18 @@ class Model:
             RC: road condition in three levels (three levels)
             Dagg: driver aggressiveness (three levels)
             t: temperature (degrees)
-            todo: work out how to include buss mass in some meaningful way
 
         Outputs:
             EC: energy consumption (KWh/km)
 
     """
+
     def __init__(self):
         """
             initialises default parameters
         """
-        self.rc = [1, 2, 3]                  # road condition has three possible levels
-        self.driver_agg = [1, 2, 3]          # driver aggressiveness has three possible levels
-
+        self.rc = [1, 2, 3]  # road condition has three possible levels
+        self.driver_agg = [1, 2, 3]  # driver aggressiveness has three possible levels
 
     def _build_regressor_variations(self):
         return None
@@ -50,7 +242,7 @@ class Model:
     def _build_coldest_day_regressor(self, trips_data, bus):
         rc = self.rc[1]
         dagg = self.driver_agg[1]
-        soc = bus.get_soc_percent()    # state or charge as percent
+        soc = bus.get_soc_percent()  # state or charge as percent
         temp = np.atleast_2d(trips_data['min_temp'].to_numpy()).T
         X = Model._build_regressor_matrix(trips_data, soc, rc, dagg, temp)
         return X
@@ -59,7 +251,7 @@ class Model:
     def _build_regressor_matrix(trips_data, soc, rc, dagg, temp):
         n = len(trips_data)
         ones = np.ones((n, 1))
-        x = trips_data[['average_gradient_%','passengers','stops_per_km','average_speed_kmh']].to_numpy()
+        x = trips_data[['average_gradient_%', 'passengers', 'stops_per_km', 'average_speed_kmh']].to_numpy()
         X = np.hstack([ones, x, soc * ones, rc * ones, dagg * ones, temp])
         return X
 
@@ -73,7 +265,7 @@ class Model:
         X = self._build_hottest_day_regressor(trips_data, bus)
         y = self._predict(X)
         ec_km = y
-        ec_total = y * trips_data['trip_distance']/1000
+        ec_total = y * trips_data['trip_distance'] / 1000
         return ec_km, ec_total
 
     def predict_worst_temp(self, trips_data, bus):
@@ -86,7 +278,7 @@ class Model:
         y = np.vstack([y1, y2]).max(axis=0)
 
         ec_km = y
-        ec_total = y * trips_data['trip_distance']/1000
+        ec_total = y * trips_data['trip_distance'] / 1000
         return ec_km, ec_total
 
 
@@ -125,16 +317,19 @@ class LinearRegressionAbdelatyModel(Model):
     B7 = 0.128
     B8 = 0.007
     """
+
     def __init__(self):
         super().__init__()
-        self.B = np.array([-0.782, 0.38, 0.005, 0.128, 0.007, 0.0124, 0.26, 0.065]) # reordered and without hvac to match parent class
+        self.B = np.array([-0.782, 0.38, 0.005, 0.128, 0.007, 0.0124, 0.26,
+                           0.065])  # reordered and without hvac to match parent class
         self.hvac_ref_vals = [13.75, 6.7, 3.0, 1.25, 2.0, 10.75]
         self.temp_ref_vals = [-20, -10, 0, 10, 20, 30]
-        self.hvac_func = interp1d(self.temp_ref_vals, self.hvac_ref_vals, kind='cubic', fill_value='extrapolate', bounds_error=False)
+        self.hvac_func = interp1d(self.temp_ref_vals, self.hvac_ref_vals, kind='cubic', fill_value='extrapolate',
+                                  bounds_error=False)
 
     def _predict(self, X):
         temps = X[:, -1]
-        hours_km = 1/X[:,4]
+        hours_km = 1 / X[:, 4]
         hvac = self._hvac_from_temp(temps, hours_km)
         return np.dot(X[:, :-1], self.B) + hvac
 
@@ -175,23 +370,27 @@ class LinearRegMod(Model):
 
 
     """
+
     def __init__(self):
         super().__init__()
-        self.B = np.array([-0.2438821, 0.1225219, 0.005, 0.128, 0.007, -0.005676, 0.26, 0.065, 0.63, 0.01469553]) # reordered and without hvac to match parent class
+        self.B = np.array([-0.2438821, 0.1225219, 0.005, 0.128, 0.007, -0.005676, 0.26, 0.065, 0.63,
+                           0.01469553])  # reordered and without hvac to match parent class
         # self.hvac_ref_vals = [13.75, 6.7, 3.0, 1.25, 2.0, 10.75]
-        self.hvac_ref_vals = [9.37057329+0.00841158+0.12998606,  7.48830395+0.0431898+0.00377488, 15.12797907+0.22957565-0.34177559]
+        self.hvac_ref_vals = [9.37057329 + 0.00841158 + 0.12998606, 7.48830395 + 0.0431898 + 0.00377488,
+                              15.12797907 + 0.22957565 - 0.34177559]
         # self.hvac_ref_vals = [0, 0, 0, 0, 0, 0]
         # self.temp_ref_vals = [-20, -10, 0, 10, 20, 30]
         self.temp_ref_vals = [10, 20, 30]
         # self.hvac_func = interp1d(self.temp_ref_vals, self.hvac_ref_vals, kind='cubic', fill_value='extrapolate', bounds_error=False)
-        self.hvac_func = interp1d(self.temp_ref_vals, self.hvac_ref_vals, kind='quadratic', fill_value='extrapolate', bounds_error=False)
+        self.hvac_func = interp1d(self.temp_ref_vals, self.hvac_ref_vals, kind='quadratic', fill_value='extrapolate',
+                                  bounds_error=False)
 
     def _predict(self, X):
         temps = X[:, -1]
         soci_full = X[:, [-4]] > 97
-        grad_square = X[:, [1]]**2
+        grad_square = X[:, [1]] ** 2
         X = np.hstack([X[:, :-1], soci_full, grad_square])
-        hours_km = 1/X[:,4]
+        hours_km = 1 / X[:, 4]
         hvac = self._hvac_from_temp(temps, hours_km)
         return np.dot(X, self.B) + hvac
 
@@ -212,12 +411,12 @@ def summarise_results(trips_data, ec_km, ec_total):
     windows = [0, 6, 9.5, 12, 15, 18, 22, 24]
 
     tmp = trips_data.copy()
-    tmp['start_hour'] = np.mod(tmp['trip_start_time']/3600,24)
+    tmp['start_hour'] = np.mod(tmp['trip_start_time'] / 3600, 24)
     tmp['ec/km (kwh/km)'] = ec_km
     tmp['ec (kwh)'] = ec_total
-    tmp.drop(columns=['agency_name','trip_id','unique_id','date','start_loc_x','Unnamed: 0',
-                      'start_loc_y','start_el','end_loc_x','end_loc_y','end_el','av_elevation',
-                      'trip_start_time','trip_end_time','average_speed_mps'], inplace=True)
+    tmp.drop(columns=['agency_name', 'trip_id', 'unique_id', 'date', 'start_loc_x', 'Unnamed: 0',
+                      'start_loc_y', 'start_el', 'end_loc_x', 'end_loc_y', 'end_el', 'av_elevation',
+                      'trip_start_time', 'trip_end_time', 'average_speed_mps'], inplace=True)
 
     tmp.reset_index(inplace=True, drop=True)
 
@@ -225,27 +424,32 @@ def summarise_results(trips_data, ec_km, ec_total):
 
     # tmp.groupby(by=['route_id','direction_id','shape_id','window'])['ec/km'].max()
     tmp.sort_values(by='ec/km (kwh/km)', inplace=True, ascending=False)
-    df = tmp.groupby(by=['route_id','direction_id','shape_id','hour window']).head(1).reset_index(drop=True)
+    df = tmp.groupby(by=['route_id', 'direction_id', 'shape_id', 'hour window']).head(1).reset_index(drop=True)
 
-    df['trip_duration'] = df['trip_duration']/60
-    df.drop(columns='start_hour',inplace=True)
-    df.rename(columns={'average_gradient_%':'average gradient (%)', "stops_per_km":"stops/km",
-                        "average_speed_kmh":"average speed (km/h)","max_temp":"possible max temp",
-                       "min_temp":"possible min temp", "trip_distance":"trip distance (m)",
-                       "trip_duration":"trip duration (mins)", "num_stops":"number stops"}, inplace=True)
+    df['trip_duration'] = df['trip_duration'] / 60
+    df.drop(columns='start_hour', inplace=True)
+    df.rename(columns={'average_gradient_%': 'average gradient (%)', "stops_per_km": "stops/km",
+                       "average_speed_kmh": "average speed (km/h)", "max_temp": "possible max temp",
+                       "min_temp": "possible min temp", "trip_distance": "trip distance (m)",
+                       "trip_duration": "trip duration (mins)", "num_stops": "number stops"}, inplace=True)
     df['hour window'] = [(x.left, x.right) for x in df['hour window'].values]
 
     return df
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     import RouteZero.bus as ebus
-    trips_data = pd.read_csv('../data/gtfs/leichhardt/trip_data.csv')
+
+
+
+
+    trips_data = pd.read_csv('../data/gtfs/act/trip_data.csv')
     trips_data['passengers'] = 38
     bus = ebus.BYD()
-    model = LinearRegressionAbdelatyModel()
-    ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
+    prediction_pipe = PredictionPipe()
+
+    ec_km, ec_total = prediction_pipe.predict_worst_case(trips_data, bus)
+    # model = LinearRegressionAbdelatyModel()
+    # ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
 
     df = summarise_results(trips_data, ec_km, ec_total)
-
-

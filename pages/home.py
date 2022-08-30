@@ -16,7 +16,7 @@ import dash_bootstrap_components as dbc
 
 from RouteZero import route
 import RouteZero.bus as ebus
-from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
+from RouteZero.models import PredictionPipe, summarise_results
 from RouteZero.optim import Extended_feas_problem
 from RouteZero.optim import determine_charger_use
 
@@ -41,6 +41,8 @@ DEFAULT_DEPOT_BATTERY_EFF = 0.95
 
 
 dash.register_page(__name__, path='/')
+
+prediction_pipe = PredictionPipe(saved_params_file="./data/bayes_lin_reg_model.json")
 
 class AppData:
     def __init__(self):
@@ -93,8 +95,7 @@ class AppData:
 
     @staticmethod
     def predict_energy_consumption(bus, subset_trip_data):
-        model = LinearRegressionAbdelatyModel()
-        ec_km, ec_total = model.predict_hottest(subset_trip_data, bus)
+        ec_km, ec_total = prediction_pipe.predict_worst_case(subset_trip_data, bus)
         return ec_km, ec_total
 
 

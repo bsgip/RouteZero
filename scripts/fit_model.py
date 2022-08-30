@@ -2,135 +2,7 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 import numpy as np
-import json
-
-
-class Passenger_imputer():
-    """ imputes missing passenger values """
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        true_pass = X["pass_true_part"].to_numpy()
-        true_weight = X["pass_true_weight"].to_numpy()
-        passengers_imputed = true_pass * true_weight + 4 * (1 - true_weight)
-        X["passengers imputed"] = passengers_imputed
-        return X
-
-class Add_constant():
-    """ Adds a constant (1) value for regression"""
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X["constant"] = 1.
-        return X
-
-class Add_kmph():
-    """ add kmph speed"""
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X["speed (km/h)"] = X["speed (m/s)"]*3.6
-        return X
-
-
-class Add_soc_full():
-    """ add state of charge full indicator variable"""
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X["soc > 97"] = X["start SOC (%)"] > 97
-        # X["soc > 95"] = (X["start SOC (%)"] >= 93) & (X["start SOC (%)"] < 97)
-        return X
-
-class Feature_square():
-    """ adds squared value of a feature """
-    def __init__(self, variables):
-        if not isinstance(variables, list):
-            raise ValueError('variables should be a list')
-        self.variables = variables
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        for var in self.variables:
-            X[var+"_square"] = X[var] ** 2
-        return X
-
-class Select_features():
-    """ keep only specified subset of features"""
-    def __init__(self, variables):
-        self.variables = variables
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X = X[self.variables].copy()
-        return X
-
-
-
-class BayesianLinearRegression():
-    """ Fits a linear model using bayesian regression"""
-    def __init__(self, prior_std=10, meas_std=0.1, regressor_vars=None):
-        self.prior_std = prior_std
-        self.meas_std = meas_std
-        self.regressor_vars = regressor_vars
-        self.params = None
-        self.post_var = None
-
-    def fit(self, X, y=None):
-        X = X.to_numpy().astype(float)
-        sigma = self.meas_std
-        prior_var = self.prior_std**2
-        params = np.linalg.solve((X.T @ X / sigma ** 2 + np.eye(X.shape[1]) / prior_var), X.T @ y / sigma ** 2)
-        post_var = np.linalg.inv(X.T @ X / sigma ** 2 + np.eye(X.shape[1])/prior_var)
-        self.params = params
-        self.post_var = post_var
-
-
-        return self
-
-    def predict(self, X):
-        X = X.to_numpy().astype(float)
-        y = X @ self.params
-        pred_std = np.sqrt(np.diag(X @ self.post_var @ X.T))
-        return y, pred_std
-
-    def save(self, filename):
-        tmp = self.__dict__
-        for key in tmp:
-            if isinstance(tmp[key],np.ndarray):
-                tmp[key] = tmp[key].tolist()
-        with open(filename, 'w') as f:
-            json.dump(tmp, f)
-
-    def load(self, filename):
-        with open(filename) as f:
-            tmp = json.load(f)
-            for key in tmp:
-                if (key=="params") or (key=="post_var"):
-                    setattr(self, key, np.array(tmp[key]))
-                else:
-                    setattr(self, key, tmp[key])
-        return self
+from RouteZero.models import BayesianLinearRegression, Add_constant, Add_kmph, Add_soc_full, Select_features, Feature_square
 
 
 if __name__=="__main__":
@@ -150,21 +22,13 @@ if __name__=="__main__":
 
     # X_train.shape, X_test.shape
 
-    FEATURES_TO_DROP = list(set(trip_data.columns.tolist()) - set(INDEPENDENT_VARS+TARGET))
-
     ebus_pipe = Pipeline([
-        # ("passenger imputation", Passenger_imputer()),
         ("add constant", Add_constant()),
         ("kmph speed", Add_kmph()),
         ("soc full indicator", Add_soc_full()),
         ("squared features", Feature_square(variables=["temp","gradient (%)"])),
         ("select features in order", Select_features(variables=INDEPENDENT_VARS))
-        # ("drop features", DropFeatures(FEATURES_TO_DROP)),
-        # ("reorder")
-        # ("linear regression model", LinearRegression(fit_intercept=False))
-        ##
     ])
-
 
 
 
@@ -190,6 +54,7 @@ if __name__=="__main__":
     plt.title("training set errors")
     plt.show()
     print("train prediction error std was {}".format(error.std()))
+    print("train prediction error mean was {}".format(error.mean()))
 
     PLOT_VARS = ["start SOC (%)", "gradient (%)", "temp", "average_passengers", "stops/km", "speed (km/h)"]
 
@@ -207,6 +72,7 @@ if __name__=="__main__":
     plt.title("test set errors")
     plt.show()
     print("test prediction error std was {}".format(error.std()))
+    print("test prediction error mean was {}".format(error.mean()))
 
 
     tmp_range = np.linspace(10,30)

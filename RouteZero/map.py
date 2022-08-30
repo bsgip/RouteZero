@@ -165,9 +165,9 @@ def create_map(route_summaries, shapes, map_title,colorbar_str, window=None, tot
 
 if __name__=="__main__":
     import RouteZero.bus as ebus
-    from RouteZero.models import LinearRegressionAbdelatyModel, summarise_results
+    from RouteZero.models import PredictionPipe, summarise_results
 
-    name = 'Tas_launceston'
+    name = 'act'
 
     trips_data = pd.read_csv('../data/gtfs/'+name+'/trip_data.csv')
     trips_data['passengers'] = 38
@@ -175,12 +175,13 @@ if __name__=="__main__":
     shape_ids = trips_data['shape_id'].astype('str')
 
     shapes = gpd.read_file('../data/gtfs/'+name+'/shapes.shp')
-    window = [5, 10]
+    window = [5, 20]
     mode='max'
 
     bus = ebus.BYD()
-    model = LinearRegressionAbdelatyModel()
-    ec_km, ec_total = model.predict_hottest(trips_data, bus)
+    # model = LinearRegressionAbdelatyModel()
+    prediction_pipe = PredictionPipe()
+    ec_km, ec_total = prediction_pipe.predict_worst_case(trips_data, bus)
 
     route_summaries = summarise_results(trips_data, ec_km, ec_total)
 
