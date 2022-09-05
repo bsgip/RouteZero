@@ -21,6 +21,7 @@ def etl_bus_data():
     files = [filename for filename in os.listdir(in_folder) if filename.endswith(".csv")]
 
     data_dict = {}
+    completeness = []
     for file in tqdm(files, desc="processing raw bus data files"):
         df = pd.read_csv(os.path.join(in_folder, file), parse_dates=['Unnamed: 0']).rename(columns={"Unnamed: 0":"datetime"}).set_index("datetime")
         df.dropna(inplace=True)
@@ -40,8 +41,11 @@ def etl_bus_data():
         mins = int(td.total_seconds()/60)+1
         N = len(df)
         print("bus {} start {} end {} with {:.2f} percent complete data".format(bus_id, df.index.min(), df.index.max(),N/mins*100))
-
+        completeness.append(N/mins*100)
         df.to_csv(out_folder + str(bus_id) + '.csv')
+    print("average completeness {}".format(np.mean(completeness)))
+    print("best completeness {}".format(np.max(completeness)))
+    print("worst completeness {}".format(np.min(completeness)))
 
 def etl_transport():
     # sheets = ["DATA SHEET 1", "DATA SHEET 2"]
@@ -465,17 +469,17 @@ def add_bus_type_and_energy_use(trip_data):
 
 if __name__=="__main__":
     # transport_df = etl_transport()                   # 1
-    # etl_bus_data()                    # 2
-    etl_merge_transport_bus()         # 3
-    etl_add_historical_temps()        # 4
-    etl_add_estimated_temp()          # 5
-    #
-    trip_data = analyse_gps_and_shape()
-    trip_data = remove_gps_outliers(trip_data)
+    etl_bus_data()                    # 2
+    # etl_merge_transport_bus()         # 3
+    # etl_add_historical_temps()        # 4
+    # etl_add_estimated_temp()          # 5
     # #
-    trip_data = add_bus_type_and_energy_use(trip_data)
-    #
-    trip_data.to_csv("../data/trip_data.csv")
-    #
+    # trip_data = analyse_gps_and_shape()
+    # trip_data = remove_gps_outliers(trip_data)
+    # # #
+    # trip_data = add_bus_type_and_energy_use(trip_data)
+    # #
+    # trip_data.to_csv("../data/trip_data.csv")
+    # #
     # trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
