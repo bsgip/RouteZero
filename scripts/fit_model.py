@@ -9,9 +9,9 @@ if __name__=="__main__":
     import matplotlib.pyplot as plt
     trip_data = pd.read_csv("../data/trip_data_outliers_removed.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
+
     INDEPENDENT_VARS = ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)",
-                        "average_passengers", "start SOC (%)", "soc > 97", "temp_square",
-                        "gradient (%)_square"]
+                        "average_passengers", "start SOC (%)", "soc > 97", "temp_square"]
     TARGET = ["ec/km (kWh/km)"]
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -26,7 +26,7 @@ if __name__=="__main__":
         ("add constant", Add_constant()),
         ("kmph speed", Add_kmph()),
         ("soc full indicator", Add_soc_full()),
-        ("squared features", Feature_square(variables=["temp","gradient (%)"])),
+        ("squared features", Feature_square(variables=["temp"])),
         ("select features in order", Select_features(variables=INDEPENDENT_VARS))
     ])
 
@@ -56,6 +56,14 @@ if __name__=="__main__":
     print("train prediction error std was {}".format(error.std()))
     print("train prediction error mean was {}".format(error.mean()))
 
+    C_std = np.sqrt(np.diag(model.post_var))
+    for i in range(9):
+        print("c_{} for {} has mean {:.3g} and 95% CI of [{:.3g}, {:.3g}]".format(i, X_train.columns[i],
+                                                                                  model.params[i][0],
+                                                                      model.params[i][0]-2*C_std[i],
+                                                                      model.params[i][0]+2*C_std[i]))
+
+
     PLOT_VARS = ["start SOC (%)", "gradient (%)", "temp", "average_passengers", "stops/km", "speed (km/h)"]
 
     for i, var in enumerate(PLOT_VARS):
@@ -81,13 +89,14 @@ if __name__=="__main__":
     plt.title("offset energy consumption by temperature plot")
     plt.show()
 
-    tmp = X_train.drop(columns=["gradient (%)_square", "temp_square", "soc > 97", "constant"])
+    tmp = X_train.drop(columns=["temp_square", "soc > 97", "constant"])
     input_mean = tmp.mean()
     input_max = tmp.max()
     input_min = tmp.min()
     vars = tmp.columns.tolist()
 
 
+    plt.figure(figsize=(10,8))
     for i, var in enumerate(vars):
         trial = pd.DataFrame(columns=vars)
         trial[var] = np.linspace(input_min[var],input_max[var])
@@ -106,9 +115,14 @@ if __name__=="__main__":
         plt.fill_between(trial[var], (y_trial.flatten() - 2*y_trial_std), y_trial.flatten()+2*y_trial_std, alpha=0.3, label="95% CI")
         plt.plot(trial[var], y_trial, label='mean sensitivity')
         plt.legend()
-
-        plt.xlabel(var)
+        if var=="temp":
+            plt.xlabel("Temperature ($^\circ$C)")
+        elif var=="average_passengers":
+            plt.xlabel("average passengers")
+        else:
+            plt.xlabel(var)
         plt.ylabel('ec/km (kwh/km)')
 
     plt.tight_layout()
     plt.show()
+

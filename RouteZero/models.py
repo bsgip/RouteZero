@@ -4,6 +4,7 @@ from scipy.interpolate import interp1d
 import json
 import time
 
+from RouteZero.route import calc_buses_in_traffic
 
 """
 
@@ -21,15 +22,15 @@ class PredictionPipe():
         self.model.load(filename=saved_params_file)
         self.add_constant = Add_constant()
         self.add_soc_full = Add_soc_full()
-        self.feature_square = Feature_square(["max_temp", "min_temp","average_gradient_%"])
+        self.feature_square = Feature_square(["max_temp", "min_temp"])
         self.select_features_max_temp = Select_features(["constant", "stops_per_km", "average_gradient_%",
                                                         "max_temp", "average_speed_kmh", "passengers",
                                                         "start SOC (%)", "soc > 97", "max_temp_square",
-                                                        "average_gradient_%_square"])
+                                                        ])
         self.select_features_min_temp = Select_features(["constant", "stops_per_km", "average_gradient_%",
                                                         "min_temp", "average_speed_kmh", "passengers",
                                                         "start SOC (%)", "soc > 97", "min_temp_square",
-                                                        "average_gradient_%_square"])
+                                                        ])
 
 
     def add_soc(self, data, bus):
@@ -67,8 +68,7 @@ class BayesianLinearRegression():
     """ Fits a linear model using bayesian regression
         Expects the following features in order
         ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)",
-                        "average_passengers", "start SOC (%)", "soc > 97", "temp_square",
-                        "gradient (%)_square"]
+                        "average_passengers", "start SOC (%)", "soc > 97", "temp_square"]
     """
 
     def __init__(self, prior_std=10, meas_std=0.1, regressor_vars=None):
@@ -439,11 +439,11 @@ def summarise_results(trips_data, ec_km, ec_total):
 
 if __name__ == "__main__":
     import RouteZero.bus as ebus
+    import matplotlib.pyplot as plt
 
-
-
-
+    # trips_data = pd.read_csv('../data/gtfs/greater_sydney/trip_data.csv')
     trips_data = pd.read_csv('../data/gtfs/act/trip_data.csv')
+    # trips_data = trips_data[trips_data['agency_name']=='Newcastle Transport']
     trips_data['passengers'] = 38
     bus = ebus.BYD()
     prediction_pipe = PredictionPipe()
@@ -453,3 +453,22 @@ if __name__ == "__main__":
     # ec_km, ec_total = model.predict_worst_temp(trips_data, bus)
 
     df = summarise_results(trips_data, ec_km, ec_total)
+
+    times, buses_in_traffic, depart_trip_energy_reqs, return_trip_enery_consumed = calc_buses_in_traffic(trips_data,
+                                                                                                       deadhead=0.1,
+                                                                                                         resolution=10,
+                                                                                                         trip_ec=ec_total)
+    plt.figure(figsize=(10, 4))
+    plt.subplot(1,2,1)
+    plt.plot(times/60,buses_in_traffic)
+    plt.xlabel('Hour of week')
+    plt.ylabel('# buses')
+
+    plt.subplot(1,2,2)
+    plt.plot(times/60, depart_trip_energy_reqs)
+    # plt.plot(times/60, return_trip_enery_consumed, label="returning trips")
+    plt.xlabel("Hour of week")
+    plt.ylabel("Energy required by departing trips (kWh)")
+
+    plt.tight_layout()
+    plt.show()
