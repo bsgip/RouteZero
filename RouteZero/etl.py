@@ -48,17 +48,21 @@ def etl_bus_data():
     print("worst completeness {}".format(np.min(completeness)))
 
 def etl_transport():
-    # sheets = ["DATA SHEET 1", "DATA SHEET 2"]
-    # xls = pd.ExcelFile('../data/transport/transportNSWdata.xlsx')
-    sheets = ["Data 1", "Data 2", "Data"]
+    sheets = ["Data 1", "Data 2", "Data", "Data"]
     xls = pd.ExcelFile('../data/transport/transportNSWdata_Jan2May.xlsx')
     xls2 = pd.ExcelFile("../data/transport/transportNSW_JuneJuly.xlsx")
+    xls3 = pd.ExcelFile("../data/transport/transportNSW_August.xlsx")
 
     for k, sheet in enumerate(sheets):
         if k < 2:
+            # continue
             all = pd.read_excel(xls, sheet)
         elif k==2:
+            # continue
             all = pd.read_excel(xls2, sheet)
+        elif k==3:
+            all = pd.read_excel(xls3, sheet)
+            all["DATE"] = all["DATE"].astype(str)
 
         REGOS = all['REGO'].unique().tolist()
         trip_dict = {}
@@ -66,6 +70,7 @@ def etl_transport():
 
         for REGO in tqdm(REGOS, desc="Extracting trip data by bus for data sheet {} of {}".format(k+1, len(sheets))):
             single_bus = all[all.REGO==REGO].copy()
+
 
             single_bus['arrive_datetime'] = pd.to_datetime(single_bus['DATE'] + ' ' + single_bus['ACTUAL_ARRIVE_TIME'])
             single_bus['depart_datetime'] = pd.to_datetime(single_bus['DATE'] + ' ' + single_bus['ACTUAL_DEPART_TIME'])
@@ -118,7 +123,8 @@ def etl_merge_transport_bus():
     trip_data_1 = pd.read_csv('../data/transport/sheet1_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
     trip_data_2 = pd.read_csv('../data/transport/sheet2_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
     trip_data_3 = pd.read_csv('../data/transport/sheet3_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
-    trip_data = pd.concat([trip_data_1, trip_data_2, trip_data_3], ignore_index=True)
+    trip_data_4 = pd.read_csv('../data/transport/sheet4_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
+    trip_data = pd.concat([trip_data_1, trip_data_2, trip_data_3, trip_data_4], ignore_index=True)
 
     bus_data_folder = '../data/bus_data/processed_csv/'
     bus_files = [filename for filename in os.listdir(bus_data_folder) if filename.endswith(".csv")]
@@ -469,17 +475,17 @@ def add_bus_type_and_energy_use(trip_data):
 
 if __name__=="__main__":
     # transport_df = etl_transport()                   # 1
-    etl_bus_data()                    # 2
-    # etl_merge_transport_bus()         # 3
-    # etl_add_historical_temps()        # 4
-    # etl_add_estimated_temp()          # 5
+    # etl_bus_data()                    # 2
+    etl_merge_transport_bus()         # 3
+    etl_add_historical_temps()        # 4
+    etl_add_estimated_temp()          # 5
     # #
-    # trip_data = analyse_gps_and_shape()
-    # trip_data = remove_gps_outliers(trip_data)
+    trip_data = analyse_gps_and_shape()
+    trip_data = remove_gps_outliers(trip_data)
     # # #
-    # trip_data = add_bus_type_and_energy_use(trip_data)
+    trip_data = add_bus_type_and_energy_use(trip_data)
     # #
-    # trip_data.to_csv("../data/trip_data.csv")
+    trip_data.to_csv("../data/trip_data.csv")
     # #
     # trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
