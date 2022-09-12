@@ -472,6 +472,13 @@ def add_bus_type_and_energy_use(trip_data):
 
     return trip_data
 
+def calculate_measurement_variance(trip_data):
+    trip_data["1SOC"] = 4.22
+    trip_data.loc[trip_data["bus type"] == "BYD", "1SOC"] = 3.68
+    tmp = (trip_data["1SOC"] / (trip_data["distance (m)"] / 1000))
+    trip_data["meas_variance"] = ((tmp*2) ** 2 / 12)
+    # v = np.sqrt(((2 * tmp) ** 2 / 12)).mean()
+    return trip_data
 
 if __name__=="__main__":
     # transport_df = etl_transport()                   # 1
@@ -484,6 +491,7 @@ if __name__=="__main__":
     trip_data = remove_gps_outliers(trip_data)
     # # #
     trip_data = add_bus_type_and_energy_use(trip_data)
+    trip_data = calculate_measurement_variance(trip_data)
     # #
     trip_data.to_csv("../data/trip_data.csv")
     # #

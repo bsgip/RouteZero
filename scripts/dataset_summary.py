@@ -80,17 +80,6 @@ print("ec/km has mean {}, max {}, min {}".format(trip_data["ec/km (kWh/km)"].mea
 ),trip_data["ec/km (kWh/km)"].min()))
 
 
-trip_data["1SOC"] = 4.22
-trip_data.loc[trip_data["bus type"]=="BYD", "1SOC"] = 3.68
 
+print("measurement std computed:",np.sqrt(trip_data["meas_variance"]).mean())
 
-
-tmp = (trip_data["1SOC"]/(trip_data["distance (m)"] / 1000))
-v = np.sqrt((tmp**2/12)).mean()
-print("measurement error computed:",v)
-
-d1 = trip_data[trip_data["bus type"]=="BYD"]["distance (m)"].to_numpy()/1000
-d2 = trip_data[trip_data["bus type"]!="BYD"]["distance (m)"].to_numpy()/1000
-
-v1 = (3.68/d1.mean())**2/12
-v2 = (4.22/d2.mean())**2/12

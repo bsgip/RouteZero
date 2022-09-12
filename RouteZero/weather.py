@@ -157,20 +157,38 @@ def daily_temp_profile(hour, low, high):
 
 if __name__=='__main__':
     from sklearn.metrics.pairwise import haversine_distances
+    import matplotlib.pyplot as plt
 
-    weather_df = pd.read_csv("../data/routezero_weather.csv")
-    weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
+    # weather_df = pd.read_csv("../data/routezero_weather.csv")
+    # weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
 
-    trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
 
-    station_lats = weather_df['lat'].unique()
-    station_lons = weather_df['lon'].unique()
+    temps = []
+    # hours = np.linspace(0, 23, 100)
+    hours = np.arange(24)
+    high = 30
+    low = 0
 
-    latitude = trips_data['start_loc_y'].to_numpy()[0]
-    longitude = trips_data['start_loc_x'].to_numpy()[0]
+    for hour in hours:
+        temps.append(daily_temp_profile(hour, low, high))
 
-    temps = TemperatureData("../data/routezero_weather.csv")
-    d = temps(latitude=latitude, longitude=longitude, datetime=weather_df['datetime'][0])
+    plt.plot(hours, temps)
+    plt.yticks([np.min(temps), np.max(temps)], labels=["Min","Max"])
+    plt.ylabel("Temperature ($^\circ$C)")
+    plt.xlabel("Hour of day")
+    plt.show()
+
+
+    # trips_data = pd.read_csv('../data/trip_data_leichhardt.csv')
+    #
+    # station_lats = weather_df['lat'].unique()
+    # station_lons = weather_df['lon'].unique()
+    #
+    # latitude = trips_data['start_loc_y'].to_numpy()[0]
+    # longitude = trips_data['start_loc_x'].to_numpy()[0]
+    #
+    # temps = TemperatureData("../data/routezero_weather.csv")
+    # d = temps(latitude=latitude, longitude=longitude, datetime=weather_df['datetime'][0])
 
 
 

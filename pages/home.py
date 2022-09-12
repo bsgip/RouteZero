@@ -42,7 +42,7 @@ DEFAULT_DEPOT_BATTERY_EFF = 0.95
 
 dash.register_page(__name__, path='/')
 
-prediction_pipe = PredictionPipe(saved_params_file="./data/bayes_lin_reg_model.json")
+prediction_pipe = PredictionPipe(saved_params_file="./data/bayes_lin_reg_model_2.json")
 
 class AppData:
     def __init__(self):

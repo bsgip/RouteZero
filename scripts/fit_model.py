@@ -2,8 +2,9 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 import numpy as np
-from RouteZero.models import BayesianLinearRegression, Add_constant, Add_kmph, Add_soc_full, Select_features, Feature_square
-
+from RouteZero.models import BayesianLinearRegression, Add_constant, Add_kmph, Add_soc_full, Select_features, \
+    Feature_square, Add_CrossProducts
+from sklearn.ensemble import RandomForestRegressor
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
@@ -27,29 +28,41 @@ if __name__=="__main__":
         ("kmph speed", Add_kmph()),
         ("soc full indicator", Add_soc_full()),
         ("squared features", Feature_square(variables=["temp"])),
-        ("select features in order", Select_features(variables=INDEPENDENT_VARS))
+        ("select features in order", Select_features(variables=INDEPENDENT_VARS)),
     ])
 
 
+    meas_variances = X_train["meas_variance"].to_numpy()
+    meas_variance_test = X_test["meas_variance"].to_numpy()
+    weights_test = (1/meas_variance_test) / (1/meas_variance_test).sum()
+    weights_test2 = (1/np.sqrt(meas_variance_test)) / (1/np.sqrt(meas_variance_test)).sum()
 
     ebus_pipe.fit(X_train, y_train)
 
     X_train = ebus_pipe.transform(X_train)
     X_test = ebus_pipe.transform(X_test)
 
-    model = BayesianLinearRegression(meas_std=0.27, regressor_vars=X_train.columns.tolist())
+    model = BayesianLinearRegression(regressor_vars=X_train.columns.tolist())
 
-    model.load("../data/bayes_lin_reg_model.json")
-    # model.fit(X_train, y_train)
+
+    model.load("../data/bayes_lin_reg_model_2.json")
+    # model.fit(X_train, y_train, meas_variance=0.27**2)
+    # model.fit(X_train, y_train, meas_variance=meas_variances)
+
+    # model = RandomForestRegressor(max_depth=10, random_state=0)
+    # model.fit(X_train, y_train.to_numpy().flatten())
+    # y_train_pred = model.predict(X_train)
 
     # save model
-    # model.save("../data/bayes_lin_reg_model.json")
+    # model.save("../data/bayes_lin_reg_model.json")        # before adding measurement weights
+    # model.save("../data/bayes_lin_reg_model_2.json")        # with measurement weights
 
 
 
     y_train_pred, y_train_std = model.predict(X_train)
 
     error = (y_train - y_train_pred)
+    # error = (y_train.to_numpy().flatten() - y_train_pred)
     plt.hist(error, bins=30)
     plt.title("training set errors")
     plt.show()
@@ -75,12 +88,15 @@ if __name__=="__main__":
     plt.show()
 
     y_test_pred, y_test_std = model.predict(X_test)
+    # y_test_pred = model.predict(X_test)
     error = (y_test.to_numpy() - y_test_pred)
+    # error = (y_test.to_numpy().flatten() - y_test_pred)
+
     plt.hist(error, bins=30)
     plt.title("test set errors")
     plt.show()
     print("test prediction error std was {}".format(error.std()))
-    print("test prediction error mean was {}".format(error.mean()))
+    print("weighted test prediction error mean was {}".format((error.flatten()*weights_test).sum()))
 
 
     tmp_range = np.linspace(10,30)

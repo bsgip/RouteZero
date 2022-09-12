@@ -17,7 +17,7 @@ from RouteZero.route import calc_buses_in_traffic
 # "gradient (%)_square"]
 class PredictionPipe():
     "pipeline to transform and make predictions on the gtfs and user supplied data"
-    def __init__(self, saved_params_file="../data/bayes_lin_reg_model.json"):
+    def __init__(self, saved_params_file="../data/bayes_lin_reg_model_2.json"):
         self.model = BayesianLinearRegression()
         self.model.load(filename=saved_params_file)
         self.add_constant = Add_constant()
@@ -71,19 +71,19 @@ class BayesianLinearRegression():
                         "average_passengers", "start SOC (%)", "soc > 97", "temp_square"]
     """
 
-    def __init__(self, prior_std=10, meas_std=0.1, regressor_vars=None):
+    def __init__(self, prior_std=10, regressor_vars=None):
         self.prior_std = prior_std
-        self.meas_std = meas_std
         self.regressor_vars = regressor_vars
         self.params = None
         self.post_var = None
 
-    def fit(self, X, y=None):
+    def fit(self, X, y=None, meas_variance=0.01):
         X = X.to_numpy().astype(float)
-        sigma = self.meas_std
+        # sigma = self.meas_std
         prior_var = self.prior_std ** 2
-        params = np.linalg.solve((X.T @ X / sigma ** 2 + np.eye(X.shape[1]) / prior_var), X.T @ y / sigma ** 2)
-        post_var = np.linalg.inv(X.T @ X / sigma ** 2 + np.eye(X.shape[1]) / prior_var)
+        params = np.linalg.solve((X.T @ (X /np.atleast_2d(meas_variance).T) + np.eye(X.shape[1]) / prior_var),
+                                 X.T @ (y / np.atleast_2d(meas_variance).T))
+        post_var = np.linalg.inv(X.T @ (X /np.atleast_2d(meas_variance).T) + np.eye(X.shape[1]) / prior_var)
         self.params = params
         self.post_var = post_var
 
@@ -126,6 +126,26 @@ class BayesianLinearRegression():
 
 
 # Feature transformers
+class Add_CrossProducts():
+    """ adds the product of two features """
+
+    def __init__(self, variables):
+        if not isinstance(variables, list):
+            raise ValueError('variables should be a list')
+        assert len(variables) > 1, "must have more than one variable to make combinations with"
+        self.variables = variables
+        self.combinations = [(a, b) for idx, a in enumerate(variables) for b in variables[idx + 1:]]
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        for p in self.combinations:
+            X[p[0]+"_"+p[1]] = X[p[0]]*X[p[1]]
+
+        # X["speed (km/h)"] = X["speed (m/s)"] * 3.6
+        return X
+
 class Add_constant():
     """ Adds a constant (1) value for regression"""
 

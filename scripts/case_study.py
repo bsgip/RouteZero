@@ -63,8 +63,42 @@ plt.show()
 chargers = {'power': [150], 'number': ['optim'], 'cost':[10]}
 bus.charging_rate=300
 grid_limit='optim'
+
+
+# SCENARIO 1: all day charging and No battery
+
 battery = {'power':2500, 'capacity':10000, 'efficiency':0.95}
-# battery = None
+problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.9,
+                              deadhead=DEADHEAD,resolution=RESOLUTION, min_charge_time=MIN_CHARGE_TIME, reserve=RESERVE,
+                              battery=battery)
+
+t1 = time.time()
+results = problem.solve()
+t2 = time.time()
+
+print('Solve took {} seconds'.format(t2 - t1))
+
+plot_results(results, problem)
+
+# SCENARIO 2: all day charging and 10MWh battery
+
+battery = {'power':2500, 'capacity':10000, 'efficiency':0.95}
+problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.9,
+                              deadhead=DEADHEAD,resolution=RESOLUTION, min_charge_time=MIN_CHARGE_TIME, reserve=RESERVE,
+                              battery=battery)
+
+t1 = time.time()
+results = problem.solve()
+t2 = time.time()
+
+print('Solve took {} seconds'.format(t2 - t1))
+
+plot_results(results, problem)
+
+
+# SCENARIO 2: all day charging and 10MWh battery
+
+battery = {'power':2500, 'capacity':10000, 'efficiency':0.95}
 problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.9,
                               deadhead=DEADHEAD,resolution=RESOLUTION, min_charge_time=MIN_CHARGE_TIME, reserve=RESERVE,
                               battery=battery)
