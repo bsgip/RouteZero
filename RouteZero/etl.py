@@ -115,7 +115,7 @@ def etl_transport():
                         count += 1
 
         trip_df = pd.DataFrame.from_dict(trip_dict, orient='index')
-        trip_df.to_csv('routezero/data/transport/sheet{}_trips.csv'.format(k+1))
+        trip_df.to_csv('/routezero/data/transport/sheet{}_trips.csv'.format(k+1))
     return trip_df
 
 def etl_merge_transport_bus():
