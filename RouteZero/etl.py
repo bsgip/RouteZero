@@ -9,8 +9,8 @@ import pytz
 from sklearn.metrics.pairwise import haversine_distances
 import geopandas as gpd
 
-from RouteZero import weather
-
+# from RouteZero import weather
+import RouteZero.weather as weather
 
 def etl_bus_data():
     in_folder = "/routezero/data/bus_data/raw_csv/"
