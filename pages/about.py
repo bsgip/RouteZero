@@ -11,11 +11,11 @@ def create_about_field():
     The tool’s development was funded by the Australian Renewable Energy Agency as part of the Next Generation Electric Bus 
     Depot project https://arena.gov.au/projects/next-generation-electric-bus-depot/ led by Zenobe and Transgrid. 
     This project is the first large scale deployment of electric buses in Australia, with 40 electric buses being rolled 
-    out into the Transit Systems fleet. These buses operate out of the Leichardt depot in Sydney, NSW. 
+    out into the Transit Systems fleet. These buses operate out of the Leichhardt depot in Sydney, NSW. 
 
     RouteZero incorporates two models. The first is a data-driven model of electricity usage for a given electric buses 
     on a particular route under particular traffic and weather conditions. This model is refined for Australian conditions 
-    based on performance data of the electric buses in Leichardt. 
+    based on performance data of the electric buses in Leichhardt. 
 
     The second model optimises the charging of the bus fleet to meet the operational demands of the timetabled routes 
     while minimising the peak demand that the depot places on the electricity network. This model functions with the 

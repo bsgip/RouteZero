@@ -90,15 +90,18 @@ class base_problem():
         agg_power = bx_array + x_array
 
         bv_array = self.get_array('bv')
-        battery_soc = np.cumsum(self.kw_to_kwh * bv_array)
+
         if self.battery is not None:
+            battery_soc = np.cumsum(self.kw_to_kwh * bv_array) + self.pyo_model.bcap.value * self.start_charge
             beff = self.battery['efficiency']
             battery_soc_test = np.cumsum(np.maximum(bx_array, 0) * beff * self.kw_to_kwh) + np.cumsum(
-                np.minimum(0, bx_array) / beff * self.kw_to_kwh)
+                np.minimum(0, bx_array) / beff * self.kw_to_kwh) + self.pyo_model.bcap.value * self.start_charge
             diff = battery_soc - battery_soc_test
             if np.abs(diff).max() > 1e-1:
                 print('Warning: battery SOC might be innacurate')
                 battery_soc = battery_soc_test
+        else:
+            battery_soc = 0 * bv_array
 
         infeasibilty = np.max(np.abs(np.minimum(0, energy_available)))
 
@@ -172,8 +175,9 @@ class base_problem():
 
     def base_objective(self, model):
         return model.end_slack * 1e10 + model.reserve_slack * 1e10 \
-               + sum(model.reg[t] for t in model.Tminus) + sum(model.x[t] for t in model.T) \
-               + sum(model.bx[t]*0.1 for t in model.T)
+               + 0.1 * sum(model.reg[t] for t in model.Tminus)/self.num_times + 0.1 * sum(model.x[t] for t in
+                                                                                          model.T)/self.num_times \
+               + sum(model.bx[t]*0.01 for t in model.T)/self.num_times
 
     def add_chargers(self, model):
         number = self.chargers['number']
@@ -235,10 +239,10 @@ class base_problem():
             model.bv = pyo.Param(model.T, initialize=0.)
         else:
             model.bx = pyo.Var(model.T, domain=pyo.Reals, bounds=(-self.battery['power'], self.battery['power']))
-            if self.windows is not None:
-                for t in model.T:
-                    if not self.windows[t]:
-                        model.bx[t].fix(0)
+            # if self.windows is not None:
+                # for t in model.T:
+                    # if not self.windows[t]:
+                        # model.bx[t].fix(0)
             if self.battery['capacity']=='optim':
                 model.bcap = pyo.Var(domain=pyo.NonNegativeReals)
             else:
@@ -310,9 +314,13 @@ class base_problem():
 
             model.bsoc_min = pyo.ConstraintList()
             model.bsoc_max = pyo.ConstraintList()
-            for t in range(1, self.num_times + 1):  # assumes battery starts empty
-                model.bsoc_min.add(0.0 + sum(model.bv[i] for i in range(t)) * self.kw_to_kwh >= 0.)
-                model.bsoc_max.add(0.0 + sum(model.bv[i] for i in range(t)) * self.kw_to_kwh <= model.bcap)
+            model.bfinish = pyo.ConstraintList()
+            for t in range(1, self.num_times + 1):  # assumes battery starts at same percentages as aggregate buses
+                model.bsoc_min.add(self.start_charge * model.bcap + sum(model.bv[i] for i in range(t)) * self.kw_to_kwh >= 0.)
+                model.bsoc_max.add(self.start_charge * model.bcap + sum(model.bv[i] for i in range(t)) * self.kw_to_kwh <= model.bcap)
+
+            model.bfinish.add(self.start_charge * model.bcap + sum(model.bv[t] for t in model.T) >= self.final_charge* model.bcap)
+
 
         return model
 
