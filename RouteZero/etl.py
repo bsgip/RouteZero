@@ -482,8 +482,8 @@ def calculate_measurement_variance(trip_data):
     return trip_data
 
 if __name__=="__main__":
-    # transport_df = etl_transport()                   # 1
-    # etl_bus_data()                    # 2
+    transport_df = etl_transport()                   # 1
+    etl_bus_data()                    # 2
     etl_merge_transport_bus()         # 3
     etl_add_historical_temps()        # 4
     etl_add_estimated_temp()          # 5
