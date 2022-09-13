@@ -371,8 +371,8 @@ def etl_add_estimated_temp():
 def analyse_gps_and_shape():
     trip_data = pd.read_csv("/routezero/data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
-    gtfs_trip_data = pd.read_csv("/routezero/data/gtfs/greater_sydney/trip_data.csv")
-    shapes = gpd.read_file("/routezero/data/gtfs/greater_sydney/shapes.shp")
+    gtfs_trip_data = pd.read_csv("/routezero/data/greater_sydney/trip_data.csv")
+    shapes = gpd.read_file("/routezero/data/greater_sydney/shapes.shp")
 
     dist_away = []
     gtfs_grad = []
