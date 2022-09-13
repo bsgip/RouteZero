@@ -11,13 +11,10 @@ import geopandas as gpd
 
 from RouteZero import weather
 
-# todo: get transport data for august
-# todo: get bus data for July and August
-# todo: get updated temperature data
 
 def etl_bus_data():
-    in_folder = "../data/bus_data/raw_csv/"
-    out_folder = "../data/bus_data/processed_csv/"
+    in_folder = "/routezero/data/bus_data/raw_csv/"
+    out_folder = "/routezero/data/bus_data/processed_csv/"
     files = [filename for filename in os.listdir(in_folder) if filename.endswith(".csv")]
 
     data_dict = {}
@@ -49,9 +46,9 @@ def etl_bus_data():
 
 def etl_transport():
     sheets = ["Data 1", "Data 2", "Data", "Data"]
-    xls = pd.ExcelFile('../data/transport/transportNSWdata_Jan2May.xlsx')
-    xls2 = pd.ExcelFile("../data/transport/transportNSW_JuneJuly.xlsx")
-    xls3 = pd.ExcelFile("../data/transport/transportNSW_August.xlsx")
+    xls = pd.ExcelFile('/routezero/data/transport/transportNSWdata_Jan2May.xlsx')
+    xls2 = pd.ExcelFile("/routezero/data/transport/transportNSW_JuneJuly.xlsx")
+    xls3 = pd.ExcelFile("/routezero/data/transport/transportNSW_August.xlsx")
 
     for k, sheet in enumerate(sheets):
         if k < 2:
@@ -115,18 +112,19 @@ def etl_transport():
                         count += 1
 
         trip_df = pd.DataFrame.from_dict(trip_dict, orient='index')
-        trip_df.to_csv('../data/transport/sheet{}_trips.csv'.format(k+1))
+        trip_df.to_csv('routezero/data/transport/sheet{}_trips.csv'.format(k+1))
     return trip_df
 
 def etl_merge_transport_bus():
 
-    trip_data_1 = pd.read_csv('../data/transport/sheet1_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
-    trip_data_2 = pd.read_csv('../data/transport/sheet2_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
-    trip_data_3 = pd.read_csv('../data/transport/sheet3_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
-    trip_data_4 = pd.read_csv('../data/transport/sheet4_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
+    trip_data_1 = pd.read_csv('/routezero/data/transport/sheet1_trips.csv', index_col='Unnamed: 0', parse_dates=[
+        'start_time', 'end_time'])
+    trip_data_2 = pd.read_csv('/routezero/data/transport/sheet2_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
+    trip_data_3 = pd.read_csv('/routezero/data/transport/sheet3_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
+    trip_data_4 = pd.read_csv('/routezero/data/transport/sheet4_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
     trip_data = pd.concat([trip_data_1, trip_data_2, trip_data_3, trip_data_4], ignore_index=True)
 
-    bus_data_folder = '../data/bus_data/processed_csv/'
+    bus_data_folder = '/routezero/data/bus_data/processed_csv/'
     bus_files = [filename for filename in os.listdir(bus_data_folder) if filename.endswith(".csv")]
     bus_data_ids = [x[:-4] for x in bus_files]
 
@@ -136,7 +134,7 @@ def etl_merge_transport_bus():
         print(REGO)
         single_bus_trips = trip_data[trip_data.REGO==REGO]
         if REGO[2:] in bus_data_ids:
-            bus_data = pd.read_csv('../data/bus_data/processed_csv/'+REGO[2:]+".csv", index_col='datetime', parse_dates=['datetime'])
+            bus_data = pd.read_csv('/routezero/data/bus_data/processed_csv/'+REGO[2:]+".csv", index_col='datetime', parse_dates=['datetime'])
             data_start_date = bus_data.index[0]
             data_end_date = bus_data.index[-1]
 
@@ -220,7 +218,7 @@ def etl_merge_transport_bus():
     trip_data[trip_data["delta SOC (%)"] <= 0] = np.nan      # should always be using energy # todo: check impact of this
     trip_data.dropna(inplace=True)
     trip_data.reset_index(inplace=True)
-    trip_data.to_csv("../data/trip_data.csv")
+    trip_data.to_csv("/routezero/data/trip_data.csv")
     print("Trip data merged for a total of {} trips".format(len(trip_data)))
 
 
@@ -228,12 +226,12 @@ def etl_merge_transport_bus():
 def etl_add_historical_temps():
     aest = pytz.timezone("Australia/Sydney")
 
-    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("/routezero/data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
     trip_data['start_time'] = trip_data['start_time'].dt.tz_localize(aest)
     trip_data['end_time'] = trip_data['end_time'].dt.tz_localize(aest)
     trip_data.dropna(inplace=True)                                  # shouldn't need this
 
-    weather_df = pd.read_csv("../data/routezero_weather.csv")
+    weather_df = pd.read_csv("/routezero/data/routezero_weather.csv")
 
     weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
     weather_df.datetime = weather_df.datetime.dt.tz_localize('UTC').dt.tz_convert(aest)
@@ -297,10 +295,10 @@ def etl_add_historical_temps():
 
     trip_data["start_time"] = trip_data["start_time"].dt.tz_localize(None)
     trip_data["end_time"] = trip_data["end_time"].dt.tz_localize(None)
-    trip_data.to_csv("../data/trip_data.csv")
+    trip_data.to_csv("/routezero/data/trip_data.csv")
 
 def etl_average_temperature_profile():
-    weather_df = pd.read_csv("../data/routezero_weather.csv")
+    weather_df = pd.read_csv("/routezero/data/routezero_weather.csv")
 
     aest = pytz.timezone("Australia/Sydney")
     weather_df['datetime'] = pd.to_datetime(weather_df['dt'], unit='s')
@@ -343,7 +341,7 @@ def etl_average_temperature_profile():
     print(av)
 
 def etl_add_estimated_temp():
-    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("/routezero/data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
     for i in tqdm(range(len(trip_data)), "Filling missing temp with estimated temperature based on daily min and max"):
         trip = trip_data.iloc[i]
         index = trip_data.index.values[i]
@@ -364,11 +362,11 @@ def etl_add_estimated_temp():
 
             trip_data.loc[index, "temp"] = temp
 
-    trip_data.to_csv("../data/trip_data.csv")
+    trip_data.to_csv("/routezero/data/trip_data.csv")
 
 
 def analyse_gps_and_shape():
-    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("/routezero/data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
     gtfs_trip_data = pd.read_csv("../data/gtfs/greater_sydney/trip_data.csv")
     shapes = gpd.read_file("../data/gtfs/greater_sydney/shapes.shp")
@@ -457,7 +455,7 @@ def add_bus_type_and_energy_use(trip_data):
     trip_data["bus type"] = ""
     trip_data["ec (kWh)"] = 0
     #
-    byd_bus_df = pd.read_csv("../data/BYD_BUS_IDS.csv")
+    byd_bus_df = pd.read_csv("/routezero/data/BYD_BUS_IDS.csv")
     byd_bus_regos =["MO"+ str(s) for s in byd_bus_df['BYD_BUS_IDS'].to_list()]
     trip_data.loc[trip_data["REGO"].isin(byd_bus_regos), "bus type"] = "BYD"
     trip_data.loc[~trip_data["REGO"].isin(byd_bus_regos), "bus type"] = "Yutong"
@@ -493,7 +491,7 @@ if __name__=="__main__":
     trip_data = add_bus_type_and_energy_use(trip_data)
     trip_data = calculate_measurement_variance(trip_data)
     # #
-    trip_data.to_csv("../data/trip_data.csv")
+    trip_data.to_csv("/routezero/data/trip_data.csv")
     # #
     # trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 

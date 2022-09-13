@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
-    trip_data = pd.read_csv("../data/trip_data_outliers_removed.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("/routezero/data/trip_data_outliers_removed.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
 
     INDEPENDENT_VARS = ["constant","stops/km", "gradient (%)", "temp", "speed (km/h)",
@@ -45,9 +45,9 @@ if __name__=="__main__":
     model = BayesianLinearRegression(regressor_vars=X_train.columns.tolist())
 
 
-    model.load("../data/bayes_lin_reg_model_2.json")
+    # model.load("../data/bayes_lin_reg_model_2.json")
     # model.fit(X_train, y_train, meas_variance=0.27**2)
-    # model.fit(X_train, y_train, meas_variance=meas_variances)
+    model.fit(X_train, y_train, meas_variance=meas_variances)
 
     # model = RandomForestRegressor(max_depth=10, random_state=0)
     # model.fit(X_train, y_train.to_numpy().flatten())
@@ -56,6 +56,7 @@ if __name__=="__main__":
     # save model
     # model.save("../data/bayes_lin_reg_model.json")        # before adding measurement weights
     # model.save("../data/bayes_lin_reg_model_2.json")        # with measurement weights
+    model.save("/routezero/data/bayes_lin_reg_model_3.json")        # with measurement weights
 
 
 
@@ -79,66 +80,66 @@ if __name__=="__main__":
 
     PLOT_VARS = ["start SOC (%)", "gradient (%)", "temp", "average_passengers", "stops/km", "speed (km/h)"]
 
-    for i, var in enumerate(PLOT_VARS):
-        plt.subplot(3,2,i+1)
-        plt.scatter(X_train[var], error, marker='.', s=0.1)
-        plt.xlabel(var)
-
-    plt.tight_layout()
-    plt.show()
+    # for i, var in enumerate(PLOT_VARS):
+    #     plt.subplot(3,2,i+1)
+    #     plt.scatter(X_train[var], error, marker='.', s=0.1)
+    #     plt.xlabel(var)
+    #
+    # plt.tight_layout()
+    # plt.show()
 
     y_test_pred, y_test_std = model.predict(X_test)
     # y_test_pred = model.predict(X_test)
     error = (y_test.to_numpy() - y_test_pred)
     # error = (y_test.to_numpy().flatten() - y_test_pred)
 
-    plt.hist(error, bins=30)
-    plt.title("test set errors")
-    plt.show()
+    # plt.hist(error, bins=30)
+    # plt.title("test set errors")
+    # plt.show()
     print("test prediction error std was {}".format(error.std()))
     print("weighted test prediction error mean was {}".format((error.flatten()*weights_test).sum()))
 
 
-    tmp_range = np.linspace(10,30)
-    out = tmp_range * -0.07 + tmp_range**2*0.002
-    plt.plot(tmp_range, out)
-    plt.title("offset energy consumption by temperature plot")
-    plt.show()
-
-    tmp = X_train.drop(columns=["temp_square", "soc > 97", "constant"])
-    input_mean = tmp.mean()
-    input_max = tmp.max()
-    input_min = tmp.min()
-    vars = tmp.columns.tolist()
-
-
-    plt.figure(figsize=(10,8))
-    for i, var in enumerate(vars):
-        trial = pd.DataFrame(columns=vars)
-        trial[var] = np.linspace(input_min[var],input_max[var])
-        for var2 in vars:
-            if var2 != var:
-                trial[var2] = input_mean[var2]
-
-        trial = Add_constant().transform(trial)
-        trial = Add_soc_full().transform(trial)
-        trial = Feature_square(variables=["temp", "gradient (%)"]).transform(trial)
-        trial = trial[INDEPENDENT_VARS]
-
-        y_trial, y_trial_std = model.predict(trial)
-
-        plt.subplot(3,2,i+1)
-        plt.fill_between(trial[var], (y_trial.flatten() - 2*y_trial_std), y_trial.flatten()+2*y_trial_std, alpha=0.3, label="95% CI")
-        plt.plot(trial[var], y_trial, label='mean sensitivity')
-        plt.legend()
-        if var=="temp":
-            plt.xlabel("Temperature ($^\circ$C)")
-        elif var=="average_passengers":
-            plt.xlabel("average passengers")
-        else:
-            plt.xlabel(var)
-        plt.ylabel('ec/km (kwh/km)')
-
-    plt.tight_layout()
-    plt.show()
-
+    # tmp_range = np.linspace(10,30)
+    # out = tmp_range * -0.07 + tmp_range**2*0.002
+    # plt.plot(tmp_range, out)
+    # plt.title("offset energy consumption by temperature plot")
+    # plt.show()
+    #
+    # tmp = X_train.drop(columns=["temp_square", "soc > 97", "constant"])
+    # input_mean = tmp.mean()
+    # input_max = tmp.max()
+    # input_min = tmp.min()
+    # vars = tmp.columns.tolist()
+    #
+    #
+    # plt.figure(figsize=(10,8))
+    # for i, var in enumerate(vars):
+    #     trial = pd.DataFrame(columns=vars)
+    #     trial[var] = np.linspace(input_min[var],input_max[var])
+    #     for var2 in vars:
+    #         if var2 != var:
+    #             trial[var2] = input_mean[var2]
+    #
+    #     trial = Add_constant().transform(trial)
+    #     trial = Add_soc_full().transform(trial)
+    #     trial = Feature_square(variables=["temp", "gradient (%)"]).transform(trial)
+    #     trial = trial[INDEPENDENT_VARS]
+    #
+    #     y_trial, y_trial_std = model.predict(trial)
+    #
+    #     plt.subplot(3,2,i+1)
+    #     plt.fill_between(trial[var], (y_trial.flatten() - 2*y_trial_std), y_trial.flatten()+2*y_trial_std, alpha=0.3, label="95% CI")
+    #     plt.plot(trial[var], y_trial, label='mean sensitivity')
+    #     plt.legend()
+    #     if var=="temp":
+    #         plt.xlabel("Temperature ($^\circ$C)")
+    #     elif var=="average_passengers":
+    #         plt.xlabel("average passengers")
+    #     else:
+    #         plt.xlabel(var)
+    #     plt.ylabel('ec/km (kwh/km)')
+    #
+    # plt.tight_layout()
+    # plt.show()
+    #

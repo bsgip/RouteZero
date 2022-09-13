@@ -37,7 +37,7 @@ def extract_model_Y_X(trip_data):
 if __name__=="__main__":
 
     import matplotlib.pyplot as plt
-    trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
+    trip_data = pd.read_csv("/routezero/data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
     road_condition = 2                  # levels 1, 2, 3
     driver_aggressiveness = 2           # levels 1, 2, 3
 
@@ -141,5 +141,5 @@ if __name__=="__main__":
     trip_data_outliers_removed = trip_data[~inds_outlier].reset_index(drop=True)
 
     trip_data_outliers_removed.drop(columns=["index", "road condition", "driver aggressiveness"])
-    trip_data_outliers_removed.to_csv("../data/trip_data_outliers_removed.csv")
+    trip_data_outliers_removed.to_csv("/routezero/data/trip_data_outliers_removed.csv")
 
