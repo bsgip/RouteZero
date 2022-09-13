@@ -2,6 +2,8 @@ import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 import numpy as np
+import sys
+sys.path.insert(0, "/group/RouteZero/project_code/RouteZero")
 from RouteZero.models import BayesianLinearRegression, Add_constant, Add_kmph, Add_soc_full, Select_features, \
     Feature_square, Add_CrossProducts
 from sklearn.ensemble import RandomForestRegressor
