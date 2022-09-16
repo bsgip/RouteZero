@@ -36,7 +36,7 @@ DEFAULT_MIN_CHARGE_TIME = 60
 DEFAULT_START_CHARGE = 90
 DEFAULT_FINAL_CHARGE = 90
 DEFAULT_RESERVE_CAPACITY = 20
-DEFAULT_CHARGER_POWER = 150
+DEFAULT_CHARGER_POWER = 300
 DEFAULT_DEPOT_BATTERY_EFF = 0.95
 
 
@@ -437,7 +437,7 @@ def create_feas_optim_options():
 
 def create_depot_options(advanced_options, ec_dict):
     min_buses = int(ec_dict['buses_in_traffic'].max())
-    max_buses = int(max(1.2 * min_buses, min_buses+5))
+    max_buses = int(max(1.4 * min_buses, min_buses+5))
     return [
         html.Hr(),
         html.H5("Step 3) Optimise charging at depot"),
@@ -521,7 +521,7 @@ def create_bus_options(advanced_options):
                 dbc.Col("Charging efficiency", width=6, align="right"),
                 dbc.Col(dbp.Slider(
                     id="charging-efficiency",
-                    value=0.9,
+                    value=0.95,
                     min=0.0,
                     max=1.0,
                     stepSize=0.01,

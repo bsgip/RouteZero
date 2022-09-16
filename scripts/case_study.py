@@ -83,6 +83,8 @@ test = trips_data.groupby(by=['route_short_name'])["route_short_name"].count().s
 
 route_names = test.index[-NUM_ROUTES:]
 
+print(route_names)
+
 trips_data = trips_data[trips_data["route_short_name"].isin(route_names)]
 
 print("number of trips is",len(trips_data))

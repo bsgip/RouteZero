@@ -46,6 +46,7 @@ if __name__=="__main__":
 
 
     model.load("../data/bayes_lin_reg_model_2.json")
+    # model.load("../data/bayes_lin_reg_model_3.json")
     # model.fit(X_train, y_train, meas_variance=0.27**2)
     # model.fit(X_train, y_train, meas_variance=meas_variances)
 

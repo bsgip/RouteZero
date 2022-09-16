@@ -337,7 +337,8 @@ if __name__=="__main__":
     # inpath = '../data/gtfs/act.zip'
     # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
     # name = 'vic_regional_bus_gtfs'
-    name = 'act_gtfs'
+    # name = 'act_gtfs'
+    name = "brisbane_gtfs"
     inpath = '../data/gtfs/'+name+'.zip'
 
 
