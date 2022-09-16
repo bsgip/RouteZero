@@ -68,11 +68,15 @@ def _create_gdf_of_value(route_summaries, shapes, window=None):
     if 'length (m)' in gdf.columns:
         gdf.drop(columns=['length (m)'], inplace=True)
 
+    if "route_long_name" in gdf.columns:
+        gdf['route_long_name'] = gdf['route_long_name'].fillna('')
+
     gdf.rename(columns={'average gradient (%)':'gradient (%)',
                         "average speed (km/h)":"speed (km/h)",
                         "possible max temp":"max temp",
                         "possible min temp":"min temp",
                         "trip distance (m)":"length (m)",
+                        "route_long_name":"route long name",
                         'route_short_name':'route short name'}, inplace=True)
     gdf.dropna(inplace=True)
 
@@ -167,7 +171,7 @@ if __name__=="__main__":
     import RouteZero.bus as ebus
     from RouteZero.models import PredictionPipe, summarise_results
 
-    name = 'act'
+    name = 'Tas_hobart'
 
     trips_data = pd.read_csv('../data/gtfs/'+name+'/trip_data.csv')
     trips_data['passengers'] = 38
