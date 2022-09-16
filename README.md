@@ -51,6 +51,10 @@ Western Australia
 South Australia
     - https://data.sa.gov.au/data/dataset/https-gtfs-adelaidemetro-com-au
     - last updated 30/10/2022
+    
+Queensland
+    - https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-seq
+    - last updated 09/07/2019
 
 ## Design
 
