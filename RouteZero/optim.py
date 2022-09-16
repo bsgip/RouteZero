@@ -37,6 +37,7 @@ class base_problem():
 
         # calculate number of buses available to charge
         Nt_avail = minimum_filter1d(buses_at_depot, int(np.ceil(min_charge_time / resolution)))
+        # Nt_avail = buses_at_depot
 
         if chargers is None:
             chargers = {'power': 300, 'number': 'optim'}
@@ -53,7 +54,7 @@ class base_problem():
         self.buses_at_depot = buses_at_depot
         self.depart_trip_energy_req = depart_trip_energy_req
         self.return_trip_energy_cons = return_trip_energy_cons
-        self.bus_capacity = bus.battery_capacity
+        self.bus_capacity = bus.usable_capacity
         self.kw_to_kwh = resolution / 60
         self.chargers = chargers
         self.Nt_avail = Nt_avail
@@ -269,8 +270,19 @@ class base_problem():
                     + sum(self.chargers['power'][j] * model.Nc[j] for j in range(i))
                     - self.chargers['power'][i] * sum(model.Nc[j] for j in range(i)))
 
-            # model.max_charge
 
+        # minimum plug in constraint
+        model.plugin_time = pyo.ConstraintList()
+        min_charge_windows = int(np.ceil(self.min_charge_time/self.resolution))
+        for t in range(self.num_times):
+            sind = max(0, t-min_charge_windows)
+            model.plugin_time.add(
+                sum(self._p2e(model.x[i]) for i in range(sind, t+1)) <=
+                sum(model.Nc[j] for j in model.charger_sets)*self.bus_capacity
+            )
+
+
+        # model.max_charge
         model.reg_con = pyo.ConstraintList()
         for t in range(self.num_times - 1):
             model.reg_con.add(model.reg[t] >= model.x[t + 1] - model.x[t])
@@ -596,7 +608,14 @@ def determine_charger_use(chargers, buses_avail, charging_power, windows=None):
     x = []
     for i in range(n):
         x.append(_determine_charger_use(chargers, buses_avail[i], charging_power[i]))
-    return np.vstack(x)
+    x = np.vstack(x)
+
+    for i, num_chargers in enumerate(chargers["number"]):
+        max_in_use = x[:, i].max()
+        if max_in_use < num_chargers:
+            x[:, i] = np.minimum(num_chargers,np.ceil(x[:, i] / max_in_use * num_chargers))
+
+    return x
 
 
 def plot_results(results, problem):
