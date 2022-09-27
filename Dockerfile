@@ -18,10 +18,9 @@ RUN apt-get update -y
 RUN apt-get install -y coinor-cbc
 
 # install packages
-ADD ./* ./
+COPY ./ ./
 RUN pip install numpy
 RUN pip install -r requirements.txt
-RUN --mount=type=ssh pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
 RUN rm -rf /root/.cache/pip
 
 RUN pip install gunicorn

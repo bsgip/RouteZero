@@ -17,3 +17,4 @@ dash-extensions
 flask-caching
 dash-bootstrap-components
 scikit-learn
+git+https://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
