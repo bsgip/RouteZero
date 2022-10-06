@@ -15,7 +15,7 @@ MIN_CHARGE_TIME = 1 * 60  # mins
 RESERVE = 0.2  # percent of all battery to keep in reserve [0-1]
 DEADHEAD = 0.1
 
-scenario = 3
+scenario = 4
 
 
 
@@ -156,7 +156,7 @@ elif scenario==3: # SCENARIO 3:  night charging only and no battery
     battery = None
     problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.9,
                                   deadhead=DEADHEAD,resolution=RESOLUTION, min_charge_time=MIN_CHARGE_TIME, reserve=RESERVE,
-                                  battery=battery, windows=windows, num_buses=113)
+                                  battery=battery, windows=windows, num_buses=150)
 
     t1 = time.time()
     results = problem.solve()
@@ -171,7 +171,7 @@ elif scenario==4: # SCENARIO 4:  night charging only and 10MWh battery
     battery = {'power':2500, 'capacity':10000, 'efficiency':0.95}
     problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.9,
                                   deadhead=DEADHEAD,resolution=RESOLUTION, min_charge_time=MIN_CHARGE_TIME, reserve=RESERVE,
-                                  battery=battery, windows=windows, num_buses=113)
+                                  battery=battery, windows=windows, num_buses=150)
 
     t1 = time.time()
     results = problem.solve()
