@@ -15,7 +15,8 @@ from RouteZero.route import calc_buses_in_traffic
 
 class base_problem():
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
-                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None, windows=None, ec_dict=None):
+                 min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None, windows=None,
+                 ec_dict=None, restrict_onsite=False):
 
         if ec_dict is not None:
             times = np.array(ec_dict["times"])
@@ -69,6 +70,7 @@ class base_problem():
         self.bus_eta = bus.charging_efficiency
         self.battery = battery
         self.windows = self._charge_windows(windows) if (windows is not None) else None
+        self.restrict_onsite = restrict_onsite
 
 
     def _solve(self, model):
@@ -240,10 +242,11 @@ class base_problem():
             model.bv = pyo.Param(model.T, initialize=0.)
         else:
             model.bx = pyo.Var(model.T, domain=pyo.Reals, bounds=(-self.battery['power'], self.battery['power']))
-            # if self.windows is not None:
-                # for t in model.T:
-                    # if not self.windows[t]:
-                        # model.bx[t].fix(0)
+            if self.windows is not None:
+                if self.restrict_onsite:    # is true
+                    for t in model.T:
+                        if not self.windows[t]:
+                            model.bx[t].fix(0)
             if self.battery['capacity']=='optim':
                 model.bcap = pyo.Var(domain=pyo.NonNegativeReals)
             else:
@@ -423,7 +426,8 @@ class Feasibility_problem(base_problem):
 
 class Extended_feas_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, Q=5000, reserve=0.2, battery=None, num_buses=None, windows=None, ec_dict=None):
+                 resolution=10, min_charge_time=60, Q=5000, reserve=0.2, battery=None, num_buses=None, windows=None,
+                 ec_dict=None, restrict_onsite=False):
         """
         Minimise the grid power limit, and the number of chargers in each set.
         :param trips_data: the summarised trips dataframe
@@ -439,11 +443,12 @@ class Extended_feas_problem(base_problem):
         :param start_charge: percentage starting battery capacity [0-1]
         :param final_charge: required final state of charge percentage [0-1]
         :param battery: dictionary containing battery specifications: (capacity, efficiency, power)
+        :param resctrict_onsite: boolean to apply charging windows to the onsite battery as well as the buses
         """
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit=grid_limit, deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses, windows=windows, ec_dict=ec_dict)
+                         battery=battery, num_buses=num_buses, windows=windows, ec_dict=ec_dict, restrict_onsite=restrict_onsite)
         self.Q = Q
 
     def _build_pyomo(self):
@@ -730,10 +735,10 @@ if __name__ == "__main__":
     #                               battery=battery, windows=windows)
 
     # battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
-    battery = None
-    problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
-                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
-                                  battery=battery)
+    # battery = None
+    # problem = Feasibility_problem(trips_data, ec_total, bus, charger_max_power, start_charge=0.9, final_charge=0.8,
+    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+    #                               battery=battery)
 
     # chargers = {'power': [50, 150], 'number': [20, 40]}
     # bus.charging_rate = 200
@@ -748,13 +753,14 @@ if __name__ == "__main__":
     # problem = Battery_spec_problem(trips_data, ec_total, bus, chargers, battery_power=5000, start_charge=0.9, final_charge=0.8,
     #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve)
 
-    # chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost':[10, 50, 100]}
-    # bus.charging_rate=300
-    # grid_limit=4000
-    # battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
-    # problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.8,
-    #                               deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
-    #                               battery=battery)
+    chargers = {'power': [40, 80, 150], 'number': ['optim', 'optim', 'optim'], 'cost':[10, 50, 100]}
+    bus.charging_rate=300
+    grid_limit=4000
+    battery = {'power':1000, 'capacity':4000, 'efficiency':0.95}
+    windows = [1]*7 + [0]*3 + [1]*5 + [0]*5 + [1]*4 # allowed charging windows
+    problem = Extended_feas_problem(trips_data, ec_total, bus, chargers, grid_limit, start_charge=0.9, final_charge=0.8,
+                                  deadhead=deadhead,resolution=resolution, min_charge_time=min_charge_time, reserve=reserve,
+                                  battery=battery, windows=windows, restrict_onsite=True)
 
     t1 = time.time()
     results = problem.solve()
