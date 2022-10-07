@@ -111,18 +111,70 @@ python app.py
 
 ### Deploying to the RouteZero server
 
-The RouteZero web application is publically deployed at routezero.cecs.anu.edu.au.
-To update the deployment use the following instructions.
+The RouteZero web application is publicly deployed at routezero.cecs.anu.edu.au.
+To update the deployment use the following instructions. If updating code make sure to merge into the 
+deploy branch.
 
-First, you will need to connect to the server using ssh
+First, you will need to connect to the server using ssh. To do this, edit the ssh config file `.ssh/config'
+to include
+```
+host routezero.cecs.anu.edu.au
+  HostName Localhost
+  Port 23455
+  User u1118557
+  IdentityFile ~/.ssh/id_rsa
+  ProxyCommand ssh u1118557@der-lab.cecs.anu.edu.au nc %h %p 2> /dev/null
+```
 
+Then connect by running
+```
+ssh routezero.cecs.anu.edu.au
+```
 
+If new data needs to be transfered do so using rsync
+```
+rsync -av --progress -e ssh /path_to_data/data routezero.cecs.anu.edu.au:~/app/RouteZero/
+```
 
+Pull any updates from the deploy branch
+```
+cd app/RouteZero/
+git pull
+```
 
-## deployment
-run
+The web application is run in the background using screen https://linuxize.com/post/how-to-use-linux-screen/
+
+Check if there is already a running screen
+```
+screen -ls
+```
+If so attach to the screen using and stop the server running by pressing ctrl-c
+```
+screen -r
+```
+else create a new screen
+```
+screen
+```
+Activate the virtual environment (if it is not activated)
+```
+source app/venv/bin/activate
+```
+
+Install package updates
+```
+pip install .
+```
+
+Start the server running again
 ```angular2html
 gunicorn --workers=12 --threads=6 -b 0.0.0.0:8050 --timeout 600 app:server
 ```
 
-nginx server time out https://ubiq.co/tech-blog/increase-request-timeout-nginx/
+Disconnect from screen by pressing ctrl-a d
+
+
+#### Server time out issue
+
+If the server needs to be reconfigured for some reason then there is a 
+nginx server time out issue that needs to be fixed. See https://ubiq.co/tech-blog/increase-request-timeout-nginx/
