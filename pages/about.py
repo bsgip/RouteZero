@@ -1,3 +1,7 @@
+"""
+        About page for the dash web application
+"""
+
 import dash
 from dash import html, dcc
 import dash_bootstrap_components as dbc

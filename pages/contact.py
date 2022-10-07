@@ -1,7 +1,10 @@
+"""
+        Contact page for the dash web application
+"""
+
 import dash
-from dash import html, dcc
 import dash_bootstrap_components as dbc
-from dash import Dash, Input, Output, State, html, dcc, dash_table, callback
+from dash import Input, Output, html, dcc, callback
 import ssl, smtplib
 
 dash.register_page(__name__)
@@ -120,11 +123,5 @@ def submit_message(n, email, name, message):
 
 
 layout =dbc.Container([
-    # dbc.Row([
-    #    dbc.Col("Please contact us with any questions or feedback via email.")
-    # ]),
-    # dbc.Row([
-    #     dbc.Col("Email: Johannes.Hendriks@anu.edu.au")
-    # ])
     contact_form()
 ], style={"padding":"10rem"})

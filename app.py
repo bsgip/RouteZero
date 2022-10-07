@@ -1,6 +1,9 @@
+"""
+                Main file for the dash web application
+"""
+
 from flask import Flask
-from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
-    ServersideOutputTransform
+from dash_extensions.enrich import DashProxy, html, ServersideOutputTransform
 import dash
 import dash_bootstrap_components as dbc
 

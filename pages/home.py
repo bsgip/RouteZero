@@ -1,3 +1,7 @@
+"""
+        Main page for all the calculations etc for the dash web application
+"""
+
 import os
 import inflection
 import pandas as pd
@@ -9,8 +13,7 @@ import numpy as np
 
 # dash stuff
 import dash_blueprint as dbp
-from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOutput, html, dcc, \
-    ServersideOutputTransform, callback
+from dash_extensions.enrich import Output, Input, State, ServersideOutput, html, dcc, callback
 import dash
 import dash_bootstrap_components as dbc
 
@@ -40,17 +43,22 @@ dash.register_page(__name__, path='/')
 prediction_pipe = PredictionPipe(saved_params_file="./data/bayes_lin_reg_model_2.json")
 
 class AppData:
+    """
+    Class containing static methods for processing data associated with the web application
+    """
     def __init__(self):
         """ Nothing to do here """
         pass
 
     @staticmethod
     def read_gtfs_file(gtfs_name):
+        "Read trip data from csv and return dataframe"
         path = os.path.join(GTFS_FOLDER, gtfs_name, TRIP_FILENAME)
         return pd.read_csv(path)
 
     @staticmethod
     def battery_dict(depot_bat_cap, depot_bat_power, depot_bat_eff):
+        "create the onsite battery options dictionary"
         battery = {"power": depot_bat_power,
                    "capacity": depot_bat_cap,
                    "efficiency": depot_bat_eff}
@@ -58,26 +66,31 @@ class AppData:
 
     @staticmethod
     def set_passenger_loading(subset_trips, passengers):
+        "Set number of passengers on trips"
         trips_data_sel = subset_trips.copy()
         trips_data_sel['passengers'] = passengers
         return trips_data_sel
 
     @staticmethod
     def get_routes(trips_data):
+        "return list of unique route short names"
         return trips_data["route_short_name"].unique().tolist()
 
     @staticmethod
     def get_agencies(trips_data):
+        "return list of unique agency names"
         return trips_data["agency_name"].unique().tolist()
 
     @staticmethod
     def subset_data(selected_routes, trips_data, agency_name):
+        "filter the trips by route and agency"
         tmp = trips_data[trips_data["agency_name"] == agency_name]
         trips_data_sel = tmp[tmp["route_short_name"].isin(selected_routes)]
         return trips_data_sel
 
     @staticmethod
     def get_bus(bus_dict):
+        "return bus class with values set using bus dict"
         max_passengers = bus_dict["max_passengers"]
         bat_capacity = bus_dict["bat_capacity"]
         charging_power = bus_dict["charging_power"]
@@ -90,11 +103,13 @@ class AppData:
 
     @staticmethod
     def predict_energy_consumption(bus, subset_trip_data):
+        "predicts energy consumption on routes"
         ec_km, ec_total = prediction_pipe.predict_worst_case(subset_trip_data, bus)
         return ec_km, ec_total
 
 
 def create_options_dict():
+    "returns default optimisation options as dictionary"
     return dict(advanced_options=False,
                 deadhead=DEFAULT_DEADHEAD / 100,
                 min_charge_time=DEFAULT_MIN_CHARGE_TIME,
@@ -105,6 +120,7 @@ def create_options_dict():
 
 
 def run_init_feasibility(options_dict, ec_dict, num_buses):
+    "Runs the depot charging optimisation"
     grid_limit = "optim"
     deadhead = options_dict["deadhead"]
     min_charge_time = options_dict["min_charge_time"]
@@ -131,6 +147,7 @@ def run_init_feasibility(options_dict, ec_dict, num_buses):
     return results
 
 def display_init_summary(init_results):
+    " Creates a markdown object which contains a text summary of the energy prediction results"
     text = """
     ###### Results: electricity usage of routes 
     
@@ -158,6 +175,7 @@ def display_init_summary(init_results):
 
 
 def display_optim_summary(results):
+    " Creates a markdown object which contains a text summary of the optimisation results"
     setup_summary = """ 
     ###### Setup summary:
     - Trip deadhead (additional time and energy between trips): {deadhead}%.
@@ -232,6 +250,7 @@ def display_optim_summary(results):
 
 
 def create_optim_results_plot(results):
+    " creates plots showing the optimisation results"
     times = results["times"] / 60
     grid_limit = results["grid_limit"]
     battery_power = results['battery_action']
@@ -320,6 +339,7 @@ def create_optim_results_plot(results):
 
 
 def get_gtfs_options():
+    " gets the gtfs source file options "
     folders = [
         folder
         for folder in os.listdir(GTFS_FOLDER)
@@ -329,11 +349,13 @@ def get_gtfs_options():
 
 
 def read_shp_file(gtfs_name):
+    " reads shape files associated with trip data"
     path = os.path.join(GTFS_FOLDER, gtfs_name, SHP_FILENAME)
     return gpd.read_file(path)
 
 
 def create_routes_map_figure(gtfs_name, map_title, route_summaries, window, total=False):
+    "creates the route energy consumption map"
     gdf = read_shp_file(gtfs_name)
 
     from RouteZero.map import create_map
@@ -349,6 +371,7 @@ def create_routes_map_figure(gtfs_name, map_title, route_summaries, window, tota
 
 
 def create_route_options():
+    "creates route user options"
     return [
         html.Hr(),
         html.H5("Step 2) Predicting electricity usage on routes"),
@@ -374,6 +397,7 @@ def create_route_options():
 
 
 def create_feas_optim_options():
+    " creates optimisation UI options"
     return [
         html.H6("Optimisation options:"),
         dbc.Container([
@@ -437,6 +461,7 @@ def create_feas_optim_options():
 
 
 def create_depot_options(advanced_options, ec_dict):
+    " creates depot UI options"
     min_buses = int(ec_dict['buses_in_traffic'].max())
     max_buses = int(max(1.4 * min_buses, min_buses+5))
     return [
@@ -490,15 +515,10 @@ def create_depot_options(advanced_options, ec_dict):
 
 
 def create_bus_options(advanced_options):
+    "creates bus UI options"
     return [
         html.H6("Bus options:"),
         dbc.Container([
-            # dbc.Row([
-            #     dbc.Col("Max Passengers", width=6, align='right'),
-            #     dbc.Col(dbp.NumericInput(
-            #     id="max-passenger-count", value=70, stepSize=1, min=0, style={"width":"7rem"}
-            # ),width=5, align="left")
-            # ]),
             dbc.Row([
                 dbc.Col("Battery capacity (kWh)", width=6, align="right"),
                 dbc.Col(dbp.NumericInput(
@@ -511,12 +531,6 @@ def create_bus_options(advanced_options):
                 id="charging-capacity-kw", value=300, stepSize=1, min=0, style={"width":"7rem"}),
                 width=5,align="left")
             ]),
-            # dbc.Row([
-            #     dbc.Col("Gross mass (kg)", width=6, align="right"),
-            #     dbc.Col(dbp.NumericInput(
-            #     id="gross-mass-kg", value=18000, stepSize=1, min=0, style={"width":"7rem"})
-            #     ,width=5, align="left")
-            # ]),
             dbc.Collapse([
             dbc.Row([
                 dbc.Col("Charging efficiency", width=6, align="right"),
@@ -539,6 +553,7 @@ def create_bus_options(advanced_options):
     ]
 
 def create_info_field():
+    " Creates info text field "
     text = """
     Welcome RouteZero, a platform for assessing the viability of electrifying bus routes and depots. 
 
@@ -552,6 +567,7 @@ def create_info_field():
     info_field = dbc.Container(dbc.Row(dbc.Col(dcc.Markdown(text),width={"size":8,"offset":2})))
     return info_field
 
+""" Creates dash web app layout object"""
 layout = html.Div(
     className="grid-container",
     children=[
@@ -595,7 +611,7 @@ layout = html.Div(
 
 )
 
-
+""" call back for after gtfs source is selected"""
 @callback(
     [Output("agency-selection-form", "children"),
      ServersideOutput("agency-store", "data")],
@@ -603,6 +619,7 @@ layout = html.Div(
     prevent_initial_callback=True
 )
 def get_agency_selection_form(gtfs_name):
+    " creates agency selection form "
     if gtfs_name is not None:
         trips_data = AppData.read_gtfs_file(gtfs_name)
         agency_names = AppData.get_agencies(trips_data)
@@ -623,6 +640,7 @@ def get_agency_selection_form(gtfs_name):
         return (None, None)
 
 
+" callback for after agency is selected"
 @callback(
     Output("route-selection-form", "children"),
     Input("agency-selector", "value"),
@@ -630,6 +648,7 @@ def get_agency_selection_form(gtfs_name):
     prevent_initial_callbacks=True,
 )
 def get_route_selection_form(agency_name, route_agency_dict):
+    " creates route selection form"
     if agency_name is not None:
         route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
         tmp = route_agency_df[route_agency_df["agency_name"] == agency_name]
@@ -653,7 +672,7 @@ def get_route_selection_form(agency_name, route_agency_dict):
                ]
 
 
-
+" callback for after routes are selected and confirmed"
 @callback(
     [Output("route-options-form", "children"),
      Output("bus-information-form", "children")],
@@ -663,6 +682,7 @@ def get_route_selection_form(agency_name, route_agency_dict):
     # prevent_initial_callbacks=True,
 )
 def get_route_options_form(n_clicks, routes_sel, advanced_options):
+    " creates route options form"
     if n_clicks and (routes_sel is not None):
         return html.Div(
             id="route-options-form", children=create_route_options()
@@ -672,6 +692,7 @@ def get_route_options_form(n_clicks, routes_sel, advanced_options):
         return (None, None)
 
 
+" callback to select all routes"
 @callback(
     Output("route-selector", "value"),
     [Input("route-selector-all", "n_clicks")],
@@ -679,6 +700,7 @@ def get_route_options_form(n_clicks, routes_sel, advanced_options):
     prevent_initial_callback=True,
 )
 def select_all_routes(n_clicks, route_agency_dict, agency_name):
+    "selects all routes"
     if n_clicks:
         route_agency_df = pd.DataFrame.from_dict(route_agency_dict)
         tmp = route_agency_df[route_agency_df["agency_name"] == agency_name]
@@ -688,6 +710,7 @@ def select_all_routes(n_clicks, route_agency_dict, agency_name):
 
 
 def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
+    "creates graph outputs showing buses in traffic and energy consumption on active trips"
     times = times / 60
 
     fig = make_subplots(rows=2, cols=1,
@@ -732,11 +755,12 @@ def create_buses_in_traffic_plots(times, buses_in_traffic, energy_req):
 
 
 def show_bus_options_form(advanced_options):
+    " creates division to hold bus options"
     return html.Div(
         id="bus-information-form", children=create_bus_options(advanced_options)
     )
 
-
+" callback for after bus options are confirmed which starts the energy prediction process"
 @callback(
     [
      Output("results-bus-number", "children"),
@@ -754,6 +778,7 @@ def show_bus_options_form(advanced_options):
 def predict_energy_usage(n_clicks, bat_capacity, charging_power,
                     charging_eff, eol_capacity, gtfs_name, routes_sel,
                        peak_passengers, deadhead_percent, agency_name):
+    "predict energy usage on trips and display outputs"
     if n_clicks:
         bus_dict = {"max_passengers": 60, "bat_capacity": bat_capacity,
                     "charging_power": charging_power, "gross_mass": 18000,
@@ -834,12 +859,14 @@ def predict_energy_usage(n_clicks, bat_capacity, charging_power,
         return (None, None, None, None)
 
 def create_window_options(hour_windows):
+    " create charging window options "
     sorted_windows =sorted(hour_windows, key=lambda x: x[0])
     # window_strings = ["{one:.1f} - {two:.1f}".format(one=x[0], two=x[1]) for x in sorted_windows]
     window_strings = ["{f_hour}:{f_min:02d} - {e_hour}:{e_min:02d}".format(f_hour=int(x[0]), f_min=int((x[0]*60) % 60),
                                                                  e_hour=int(x[1]), e_min=int((x[1]*60) % 60)) for x in sorted_windows]
     return [{"value": item, "label": item} for item in window_strings]
 
+" callback for after map window is chosen (updates map to new window)"
 @callback(
     Output("results-route-map", "children"),
     [Input("window-selector", "value"),Input("total-energy-toggle","value")],
@@ -847,6 +874,7 @@ def create_window_options(hour_windows):
     prevent_initial_callback=True,
 )
 def show_energy_usage_map(window, total_toggle, route_summary_dict, gtfs_name):
+    " creates and displays energy usage map"
     if (window is not None) and (total_toggle is not None):
         df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
         map_title = "Energy consumption of routes between " + window
@@ -857,6 +885,7 @@ def show_energy_usage_map(window, total_toggle, route_summary_dict, gtfs_name):
                                         children=html.Iframe(id='map', srcDoc=map_html, width="90%", height="850vh")
                                     ))
 
+" callback for pressing the download csv button"
 @callback(
    Output("download-dataframe-csv", "data"),
     Input("btn-ec-results", "n_clicks"),
@@ -864,11 +893,13 @@ def show_energy_usage_map(window, total_toggle, route_summary_dict, gtfs_name):
     prevent_initial_callback=True
 )
 def download_ec_results(n_clicks, route_summary_dict):
+    "opens a file download window with energy prediction results as csv"
     if n_clicks:
         df = pd.DataFrame.from_dict(route_summary_dict, orient='index')
         df = df[['route_short_name','hour window', 'route_id', 'direction_id']+list(df.columns)[4:-1]]
         return dcc.send_data_frame(df.to_csv, "route_energy_usage_summary.csv")
 
+"callback for having chosen the map window-selector that then shows the optimisation options UI form"
 @callback(
     Output("feas-optim-options-form", "children"),
     # [Input("confirm-bus-options", "n_clicks")],
@@ -877,6 +908,7 @@ def download_ec_results(n_clicks, route_summary_dict):
     prevent_initial_callbacks=True
 )
 def show_init_optim_options_form(n_clicks, advanced_options, ec_dict):
+    "shows the depot and optimisation options ui fields"
     if n_clicks:
         return [
             html.Div(
@@ -888,6 +920,7 @@ def show_init_optim_options_form(n_clicks, advanced_options, ec_dict):
         ]
 
 
+" callback for comfirming the optimisation options (pressing 'optimise') "
 @callback(
     Output("results-init-feas", "children"),
     [Input("confirm-optim-options", "n_clicks")],
@@ -905,6 +938,7 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
                             depot_bat_eff, min_charge_time, start_charge, final_charge,
                             reserve_capacity, deadhead_percent, bus_dict, ec_dict,
                             peak_passengers, num_buses, windows_row, restrict_onsite):
+    " runs the depot charging optimisation and displays the results"
     if n_clicks:
         windows = [w["props"]["children"]["props"]["checked"] for w in windows_row]
 
@@ -927,7 +961,6 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
             dbc.Col(create_optim_results_plot(results), width=6),
         ]),fluid=True)
         return out
-        # return html.Center(create_optim_results_plot(results))
     else:
         return None
 
