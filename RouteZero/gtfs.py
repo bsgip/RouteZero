@@ -1,20 +1,13 @@
+"""
+                        RouteZero module containing functions for working with GTFS files
+"""
+
 import partridge as ptg
 from zipfile import ZipFile
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 from tqdm import tqdm
-
-"""
-                        Functions for working with gtfs files
-"""
-
-
-# def to_csv(filename, routes, trips, stops, stop_times):       # probs not the right time to be saving data
-#     routes.to_csv(filename+'_routes.csv')
-#     trips.to_csv(filename+'_trips.csv')
-#     stops.to_csv(filename+'_stops.csv')
-#     stop_times(filename+'_stop_times.csv')
 
 def read_route_desc_and_names(inpath):
     """
@@ -120,6 +113,7 @@ def _read_agency(inpath):
     return agency
 
 def _read_service_ids_by_date(inpath):
+    "Reads service ids by date"
     service_ids_by_date = ptg.read_service_ids_by_date(inpath)
     return service_ids_by_date
 

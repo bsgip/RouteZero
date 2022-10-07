@@ -1,19 +1,27 @@
+"""
+
+            RouteZero depot charging optimisation module
+
+            functionality used within the web application is found primarily within the classes
+            - base_problem
+            - Extended_feas_problem
+
+            A description of the optimisation problem solved is given in the Documentation
+
+"""
+
 import numpy as np
 from scipy.ndimage import minimum_filter1d
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
-
 from RouteZero.route import calc_buses_in_traffic
-
-"""
-
-            Functions for performing the depot charging feasibility calculations
-
-"""
 
 
 class base_problem():
+    """
+    The base class for creating and solving the optimisation problem
+    """
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, deadhead=0.1, resolution=10, num_buses=None,
                  min_charge_time=60, start_charge=0.9, final_charge=0.8, reserve=0.2, battery=None, windows=None,
                  ec_dict=None, restrict_onsite=False):
@@ -177,12 +185,14 @@ class base_problem():
         return used_daily, charged_daily
 
     def base_objective(self, model):
+        "The base objective required to make the optimisation problem run (slack variables and the like) "
         return model.end_slack * 1e10 + model.reserve_slack * 1e10 \
                + 0.1 * sum(model.reg[t] for t in model.Tminus)/self.num_times + 0.1 * sum(model.x[t] for t in
                                                                                           model.T)/self.num_times \
                + sum(model.bx[t]*0.01 for t in model.T)/self.num_times
 
     def add_chargers(self, model):
+        "For adding multiple types of chargers to the optimisation problem"
         number = self.chargers['number']
         power = self.chargers['power']
 
@@ -212,6 +222,7 @@ class base_problem():
                 model.Nc[i].fix(int(number[i]))
 
     def _charge_windows(self, windows):
+        " For converting hourly charge windows into a binary array with the resolution of hte optimisation problem"
         tmp = np.repeat(windows, 60 / self.resolution)  # convert from hour windows to time slow windows
         tmp = tmp.tolist() * 8
         tmp = tmp[:self.num_times]
@@ -607,6 +618,7 @@ def _determine_charger_use(chargers, buses_avail, charging_power):
     return new_set[::-1]    # swap back so largest charger first
 
 def determine_charger_use(chargers, buses_avail, charging_power, windows=None):
+    """ Works out how many chargers of each type are in use at any given time (approximate) """
     if windows is not None:
         buses_avail = buses_avail * windows
     n = len(charging_power)

@@ -1,20 +1,19 @@
+"""
+
+                RouteZero module containing the machine learning predictive models
+
+                The model used in the web app is run using the PredictionPipe class.
+                A description of this model is found in the Documetnation
+"""
+
 import pandas as pd
 import numpy as np
 from scipy.interpolate import interp1d
 import json
-import time
-
 from RouteZero.route import calc_buses_in_traffic
 
-"""
 
-                module for electric bus energy consumption models
 
-"""
-
-# ["constant", "stops/km", "gradient (%)", "temp", "speed (km/h)",
-# "average_passengers", "start SOC (%)", "soc > 97", "temp_square",
-# "gradient (%)_square"]
 class PredictionPipe():
     "pipeline to transform and make predictions on the gtfs and user supplied data"
     def __init__(self, saved_params_file="../data/bayes_lin_reg_model_2.json"):
@@ -116,13 +115,6 @@ class BayesianLinearRegression():
                 else:
                     setattr(self, key, tmp[key])
         return self
-
-
-# what data do we have that we need to extract
-# - min_temp and max_temp
-# - ['average_gradient_%','passengers','stops_per_km','average_speed_kmh']
-# what features we need to add
-# - constant, soc > 97%, temp_square, gradient_square
 
 
 # Feature transformers

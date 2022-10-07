@@ -1,3 +1,9 @@
+"""
+    RouteZero module for processing the raw electric bus trial data from multiple sources and combine into the
+    data used for training the machine learning model. Description of this process is found in the Documentation.
+
+"""
+
 import pandas as pd
 import numpy as np
 import datetime
@@ -8,14 +14,13 @@ import srtm
 import pytz
 from sklearn.metrics.pairwise import haversine_distances
 import geopandas as gpd
-
 from RouteZero import weather
 
-# todo: get transport data for august
-# todo: get bus data for July and August
-# todo: get updated temperature data
-
 def etl_bus_data():
+    """
+    Process the raw bus operation data from zenobe.
+    Splits the data up by bus
+    """
     in_folder = "../data/bus_data/raw_csv/"
     out_folder = "../data/bus_data/processed_csv/"
     files = [filename for filename in os.listdir(in_folder) if filename.endswith(".csv")]
@@ -48,6 +53,10 @@ def etl_bus_data():
     print("worst completeness {}".format(np.min(completeness)))
 
 def etl_transport():
+    """
+    Process the raw bus stop and passenger data from Transport for NSW.
+    Converts the data into average number of passengers by trip on a specific route.
+    """
     sheets = ["Data 1", "Data 2", "Data", "Data"]
     xls = pd.ExcelFile('../data/transport/transportNSWdata_Jan2May.xlsx')
     xls2 = pd.ExcelFile("../data/transport/transportNSW_JuneJuly.xlsx")
@@ -119,6 +128,9 @@ def etl_transport():
     return trip_df
 
 def etl_merge_transport_bus():
+    """
+    Merges the bus operations and trip passenger data
+    """
 
     trip_data_1 = pd.read_csv('../data/transport/sheet1_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
     trip_data_2 = pd.read_csv('../data/transport/sheet2_trips.csv', index_col='Unnamed: 0', parse_dates=['start_time', 'end_time'])
@@ -226,6 +238,9 @@ def etl_merge_transport_bus():
 
 
 def etl_add_historical_temps():
+    """
+    Appends historical temperature data to the trip records
+    """
     aest = pytz.timezone("Australia/Sydney")
 
     trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
@@ -300,6 +315,9 @@ def etl_add_historical_temps():
     trip_data.to_csv("../data/trip_data.csv")
 
 def etl_average_temperature_profile():
+    """
+    Creates an average daily temperature profile
+    """
     weather_df = pd.read_csv("../data/routezero_weather.csv")
 
     aest = pytz.timezone("Australia/Sydney")
@@ -343,6 +361,9 @@ def etl_average_temperature_profile():
     print(av)
 
 def etl_add_estimated_temp():
+    """
+    Filles missing temperature data based on the average daily temperature profile
+    """
     trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
     for i in tqdm(range(len(trip_data)), "Filling missing temp with estimated temperature based on daily min and max"):
         trip = trip_data.iloc[i]
@@ -368,6 +389,9 @@ def etl_add_estimated_temp():
 
 
 def analyse_gps_and_shape():
+    """
+    Compares the bus GPS operation profile to the route shape file from the GTFS data to find outliers
+    """
     trip_data = pd.read_csv("../data/trip_data.csv", parse_dates=["start_time", "end_time"], index_col="Unnamed: 0")
 
     gtfs_trip_data = pd.read_csv("../data/gtfs/greater_sydney/trip_data.csv")
@@ -445,6 +469,9 @@ def analyse_gps_and_shape():
     return trip_data
 
 def remove_gps_outliers(trip_data):
+    """
+    Removes outliers based on GPS and shape file comparisons
+    """
     print("removing {} trips as too far from shape id".format((trip_data["dist from shape id"] > 5).sum()))
     trip_data = trip_data[trip_data["dist from shape id"] < 5]
     length_diff = trip_data['distance (m)'] - trip_data['gtfs length (m)']
@@ -453,6 +480,9 @@ def remove_gps_outliers(trip_data):
     return trip_data
 
 def add_bus_type_and_energy_use(trip_data):
+    """
+    Appends bus type information and uses the to calculate energy use in kWh rather than %
+    """
     trip_data = trip_data.copy()
     trip_data["bus type"] = ""
     trip_data["ec (kWh)"] = 0
@@ -473,6 +503,9 @@ def add_bus_type_and_energy_use(trip_data):
     return trip_data
 
 def calculate_measurement_variance(trip_data):
+    """
+    Calculates average measurement variance
+    """
     trip_data["1SOC"] = 4.22
     trip_data.loc[trip_data["bus type"] == "BYD", "1SOC"] = 3.68
     tmp = (trip_data["1SOC"] / (trip_data["distance (m)"] / 1000))

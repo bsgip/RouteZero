@@ -26,13 +26,20 @@ class Bus:
       self.soc = 1. * self.usable_capacity
 
    def get_soc_percent(self):
+      " Returns current state of charge as a percentage"
       return self.soc / self.usable_capacity * 100
 
 class Yutong(Bus):
+   """
+   Paraemters for the Yutong bus used in the Leichhardt trial
+   """
    def __init__(self):
       Bus.__init__(self,74, 422, 300, 18000)
 
 class BYD(Bus):
+   """
+   Parameters for the BYD bus
+   """
    def __init__(self):
       Bus.__init__(self,74, 368, 80, 18000)
 

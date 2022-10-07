@@ -1,3 +1,8 @@
+"""
+                RouteZero module containing functions for processing the GTFS file and extracting the trip/route
+                information corresponding to the busiest week
+"""
+
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
@@ -12,10 +17,6 @@ from shapely.geometry import LineString
 import RouteZero.gtfs as gtfs
 import RouteZero.weather as weather
 
-"""
-                Functions for processing route/trip data and appending information to this
-"""
-
 def process(routes, trips, stop_times, stops, patronage, shapes, get_temps=True):
     """
     Processes the gtfs data frames and summarises all relevant model input information in one data frame
@@ -24,6 +25,7 @@ def process(routes, trips, stop_times, stops, patronage, shapes, get_temps=True)
     :param stops: gtfs stops data frame
     :param patronage: peak passenger on route information
     :param shapes: gtfs shapes dataframe
+    :param get_temps: if true then adds temperature data
     :return: data frame summarising relevant model input information
     """
     # calculate shape lengths
@@ -44,6 +46,7 @@ def process(routes, trips, stop_times, stops, patronage, shapes, get_temps=True)
 
 
 def update_patronage(trip_summary, patronage):
+    " updates number of passengers on each trip"
     if 'passengers' in trip_summary.columns:
         trip_summary.drop(columns='passengers')
     patronage_df = pd.DataFrame.from_dict(patronage)
@@ -67,6 +70,7 @@ def _append_trip_patronage(routes, trips, patronage):
 
 
 def _calculate_shape_length(shapes):
+    "calculates length of route shape geometry"
     geometry = shapes['geometry']
     lengths = []
     for g in geometry:
@@ -121,13 +125,6 @@ def _summarise_trip_data(trips, stop_times, stops):
     trip_summary['end_loc_x'] = trip_end_stops['geometry'].values.x
     trip_summary['end_loc_y'] = trip_end_stops['geometry'].values.y
     trip_summary['end_el'] = trip_end_stops['elevation']
-
-    # tmp = trip_summary[trip_summary['route_id'] == '74-320-sj2-1']
-    # plt.plot(tmp['trip_start_time']/3600,tmp['average_speed_mps'],'x')
-    # plt.title('Average speed on route (both directions)')
-    # plt.ylabel('speed (mps)')
-    # plt.xlabel('hour of week')
-    # plt.show()
 
     # number of stop along route, count up stops and convert to stops/km
     df_tmp = stop_times.groupby(by=['route_id', 'direction_id', 'shape_id', 'unique_id'])[
@@ -281,16 +278,15 @@ def _elevation_from_shape(shapes):
     return elevation_profiles
 
 def offset_shape_geometries(shapes):
+    """
+    Offsets shape geometries so routes can be displayed not on top of each other in the mapping stage
+    """
     geometries = shapes['geometry'].values
 
     new_geom = []
     for g in tqdm(geometries, desc='offsetting shape geometries'):
         x,y = g.xy
 
-        # df = pd.DataFrame.from_dict({'x':x.tolist(),'y':y.tolist()})
-        # df.drop_duplicates(inplace=True, ignore_index=True)
-        # x = df['x'].to_numpy()
-        # y = df['y'].to_numpy()
         x = np.array(x.tolist())
         y = np.array(y.tolist())
 

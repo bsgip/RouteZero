@@ -1,38 +1,23 @@
+"""
+
+    RouteZero module with functions for creating the route energy usage map
+
+"""
+
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import branca
 import folium
 import webbrowser
 
-"""
-
-    Functions for plotting results on a map
-    
-"""
-
 def _folium_open(f_map, path):
+    "Opens a folium html webpage in browser"
     html_page = f'{path}'
     f_map.save(html_page)
     # open in browser.
     new = 2
     webbrowser.open(html_page, new=new)
 
-# def route_energy_map(trip_data, energy_consumption, shapes, window=None, mode='max'):
-#
-#     tmp = trip_data.copy()
-#     tmp['EC'] = energy_consumption
-#
-#     # if window is not None:
-#     #     tmp = tmp[tmp['trip_start_time'] > ]
-#
-#     ## Prepare data for plotting on a map
-#     shape_ids = trip_data.shape_id
-#
-#     gdf = gpd.GeoDataFrame(shapes)
-#     gdf['route_id'] = "nan"
-#     gdf['max_EC_total'] = np.nan
-#     gdf['max_EC_km'] = np.nan
 
 def _create_gdf_of_value(route_summaries, shapes, window=None):
     """
@@ -84,6 +69,16 @@ def _create_gdf_of_value(route_summaries, shapes, window=None):
     return gdf
 
 def _create_gdf_map(gdf, map_title, colorbar_str, min_val=None, max_val=None, total=False):
+    """
+    create map showing information contained in the geopandas dataframe
+    :param gdf: geopandas dataframe containing the route information to be plotted
+    :param map_title: map title string
+    :param colorbar_str: string for the colorbar
+    :param min_val: colorbar minimum value
+    :param max_val: colorbar maximumvalue
+    :param total: if true, displays the total energy consumption, if false, displays the energy consumption per km
+    :return m: a folium map object
+    """
     minx, miny, maxx, maxy = gdf.geometry.total_bounds
 
     centroid_lat = miny + (maxy - miny) / 2
