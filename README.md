@@ -1,29 +1,71 @@
 # RouteZero
-Electric bus energy usage prediction given high level route information and depot charging feasibility and optimisation.
+Python package for the RouteZero project. RouteZero provides predictions of electric bus energy usage when 
+undertaking a trip on a specific route and depot charging optimisation. For a detailed description of the project 
+goals, design, and theory see documentation/repord.pdf. 
+
+For the purpose of the describing the code the following definitions are used:
+- A *bus route* is defined as a sequence of bus stops and the path taken between them. A bus might do the same
+route several times a day or week and multiple buses might be on the same route at the same time. A bus
+route is what we think of if we were to say that “Newcastle West to University via Carrington” route is not
+a very direct route between Newcastle West and Carrington.
+- A *bus trip* is a single occurrence of a bus undertaking a given route. It has a specific start and end time.
+This is what saying “the 9:11am Monday bus from Newcastle West to University” would be referring to.
+Each trip on a route is considered to have different energy requirements as the bus may encounter different
+traffic and weather conditions as well as having a different number of passengers.
+- A *trip timetable* is defined as the schedule of trips that occur on a route or a collection of routes. It is what
+a member of the public would use when they check what times they can catch a bus from stop A to stop
+B. Importantly, a trip timetable provides no information about which bus is operating which trips/routes.
+Likewise, it does not provide information about the sequence of trips a bus is undertaking or about when a
+bus would return or depart the depot.
+
+Information about the routes, trips, and timetable is extracted from Google Transit Feed Specification files. These 
+files need to undergo preprocessing.
+
+## Repository contents
+The repository consists of
+- A package of functions for data processing, prediction, and optimisation `routezero/routezero`
+- A dash web application `RouteZero/app.py` and the pages in `RouteZero/pages`
+- Some additional scripts used when generating the machine learning model and results for the report `RouteZero/scripts`
+- The web application and data management functions expect data to be located in a folder `RouteZero/data`. This 
+  folder is gitignored due to size.
 
 ## Installation
+To install the RouteZero package complete the following steps:
+1. Clone the repository
+```
+git clone git@github.com:bsgip/RouteZero.git
+```
 
-clone the repo and then
+2. Install the package
 ```angular2html
+cd RouteZero
 pip install .
 ```
 
-Install the CBC optimisation solver by following the instructions at https://zoomadmin.com/HowToInstall/UbuntuPackage/coinor-cbc
+3. Install the CBC optimisation solver by following the instructions at https://zoomadmin.com/HowToInstall/UbuntuPackage/coinor-cbc
+```
+sudo apt-get update -y
+sudo apt-get install -y coinor-cbc
+```
 
-then checkout scripts/UI_process_notebook.ipynb
-
-this will also require you to install jupyter packages and ipywidgets
-
-### For the UI
-
-```angular2html
-pip install dash
-pip install dash_extensions
+4. (For the webb application) Install dash-blueprint
+```
 pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
+
 ```
 
 
-## gtfs data
+## Processing GTFS files
+To extract data from a GTFS file in preparation for use with the web application follow these steps:
+1. Locate the gtfs zip file according to `data/gtfs/<name>_gtfs.zip`
+2. Edit line 337 of `routezero/route.py` to be `name=<name>_gtfs`
+3. Run `python routezero/route.py`
+4. Check that the csv `data/gtfs/<name>/trip_data.csv` is created
+
+
+### Current data sources
+These are the current data sources and when they were last updated
+
 Greater sydney:
     - https://opendata.transport.nsw.gov.au/dataset/timetables-complete-gtfs
     - last updated 2022-06-04
@@ -56,8 +98,23 @@ Queensland
     - https://www.data.qld.gov.au/dataset/general-transit-feed-specification-gtfs-seq
     - last updated 09/07/2019
 
-## Design
+## Running the web application
+Before running the web application make sure the required data files are inside `RouteZero/data/`.
+Data can be found in the BSGIP onedrive `Documents/12_Major Projects/RouteZero/data`.
 
+
+### Locally
+Run the command
+```angular2html
+python app.py
+```
+
+### Deploying to the RouteZero server
+
+The RouteZero web application is publically deployed at routezero.cecs.anu.edu.au.
+To update the deployment use the following instructions.
+
+First, you will need to connect to the server using ssh
 
 
 
@@ -65,7 +122,7 @@ Queensland
 ## deployment
 run
 ```angular2html
-gunicorn --workers=5 --threads=1 -b 0.0.0.0:8050 --timeout 600 app:server
+gunicorn --workers=12 --threads=6 -b 0.0.0.0:8050 --timeout 600 app:server
 ```
 
 nginx server time out https://ubiq.co/tech-blog/increase-request-timeout-nginx/

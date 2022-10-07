@@ -334,20 +334,11 @@ def offset_shape_geometries(shapes):
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
-    # inpath = '../data/gtfs/act.zip'
-    # inpath = '../data/gtfs/full_greater_sydney_gtfs_static.zip'
-    # name = 'vic_regional_bus_gtfs'
-    # name = 'act_gtfs'
     name = "brisbane_gtfs"
     inpath = '../data/gtfs/'+name+'.zip'
 
 
     route_short_names, route_desc = gtfs.read_route_desc_and_names(inpath)
-
-    # route_short_names = ["305", "320", '389', '406']
-    # route_names_df = pd.read_csv('../data/zenobe_routes.csv')
-    # route_short_names = route_names_df['route_short_name'].to_list()
-    # route_desc = ['Sydney Buses Network']
 
     routes, trips, stops, stop_times, shapes = gtfs.read_busiest_week_data(inpath, route_short_names, route_desc)
 

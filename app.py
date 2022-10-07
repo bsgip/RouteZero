@@ -4,8 +4,6 @@ from dash_extensions.enrich import DashProxy, Output, Input, State, ServersideOu
 import dash
 import dash_bootstrap_components as dbc
 
-# backend = RedisStore()
-# backend = FileSystemStore(threshold=100)
 
 server = Flask(__name__)
 app = DashProxy(
