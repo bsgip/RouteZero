@@ -119,11 +119,12 @@ def run_init_feasibility(options_dict, ec_dict, num_buses):
     battery = options_dict["battery"]
     chargers = options_dict["chargers"]
     windows = options_dict["windows"]
+    restrict_onsite = options_dict["restrict_onsite"]
     bus = AppData.get_bus(options_dict["bus_dict"])
     problem = Extended_feas_problem(None, None, bus, chargers, grid_limit, start_charge=start_charge,
                                     final_charge=final_charge,
                                     deadhead=deadhead, resolution=RESOLUTION, min_charge_time=min_charge_time,
-                                    reserve=reserve, num_buses=num_buses,
+                                    reserve=reserve, num_buses=num_buses, restrict_onsite=restrict_onsite,
                                     battery=battery, ec_dict=ec_dict, windows=windows)
 
     results = problem.solve()
@@ -426,6 +427,11 @@ def create_feas_optim_options():
             dbc.Row([
                 dbc.Col(dbp.Checkbox("{}:00-{}:00".format(i,i+1), id="window-{}".format(i), checked=True)) for i in range(24)
             ], id='windows-row'),
+            dbc.Row([
+                # dbc.Col("Apply times to on-site battery:"),
+                dbc.Col(dbp.Checkbox("Apply times to on-site battery:", id='restrict-onsite', checked=False))
+            ])
+
         ]),
         dbc.Row([
             dbc.Col(dbp.Button(id="confirm-optim-options", children="Optimise charging", n_clicks=0)),
@@ -896,13 +902,14 @@ def show_init_optim_options_form(n_clicks, advanced_options, ec_dict):
      State("final-charge", "value"), State("reserve-capacity", "value"),
      State("deadhead", "value"), State("bus-store", "data"),
      State("ec-store", "data"), State("peak-passengers", "value"),
-     State("num-buses-slider", "value"), State("windows-row", "children")],
+     State("num-buses-slider", "value"), State("windows-row", "children"),
+     State("restrict-onsite", "checked")],
     prevent_initial_callbacks=True
 )
 def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_power,
                             depot_bat_eff, min_charge_time, start_charge, final_charge,
                             reserve_capacity, deadhead_percent, bus_dict, ec_dict,
-                            peak_passengers, num_buses, windows_row):
+                            peak_passengers, num_buses, windows_row, restrict_onsite):
     if n_clicks:
         windows = [w["props"]["children"]["props"]["checked"] for w in windows_row]
 
@@ -916,7 +923,8 @@ def run_initial_feasibility(n_clicks, charger_power, depot_bat_cap, depot_bat_po
                         "chargers": chargers,
                         "battery": battery,
                         "bus_dict": bus_dict,
-                        "windows": windows}
+                        "windows": windows,
+                        "restrict_onsite":restrict_onsite}
         results = run_init_feasibility(options_dict, ec_dict, num_buses)
         results['peak_passengers'] = peak_passengers
         out = dbc.Container(dbc.Row([
