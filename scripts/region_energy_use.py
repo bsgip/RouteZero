@@ -19,7 +19,7 @@ NUM_PASSENGERS = 15
 DEADHEAD = 0.1
 RESOLUTION = 10
 
-# region = 1          # all NSW
+# region = 1          # all NSW     (used 67.5 terrawatt hours last financial year, so the bus load seems negigible?)
 # region = 2          # all Victoria
 # region = 3          # metro melbourne (vic)
 region = 4          # Sydney    (radius bounded)

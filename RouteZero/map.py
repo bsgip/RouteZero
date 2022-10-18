@@ -159,6 +159,10 @@ def create_map(route_summaries, shapes, map_title,colorbar_str, window=None, tot
         min_val = route_summaries['ec/km (kwh/km)'].min()
 
     gdf = _create_gdf_of_value(route_summaries, shapes, window=window)
+    max_temp = gdf["max temp"].max()
+    min_temp = gdf["min temp"].min()
+    map_title = map_title + " allowing for\n a maximum temperature on routes of {:.1f} and a minimum temperature on " \
+                            "routes of {:.1f}".format(max_temp, min_temp)
     m = _create_gdf_map(gdf, map_title, colorbar_str, max_val=max_val, min_val=min_val, total=total)
     return m
 

@@ -9,6 +9,8 @@ import time
 # some options
 num_days = 30
 
+
+np.random.seed(seed=15)
 # setting up the problem
 # problem is set up considering 15 minute time intervals and then all units are given in kWh
 
