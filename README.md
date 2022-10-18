@@ -54,6 +54,8 @@ pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash
 
 ```
 
+5. (Optional) Download preprocessed data files.  Data can be found in the BSGIP onedrive `Documents/12_Major Projects/RouteZero/data`, place the data in `RouteZero/data/`
+
 
 ## Processing GTFS files
 To extract data from a GTFS file in preparation for use with the web application follow these steps:
