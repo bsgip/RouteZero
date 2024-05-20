@@ -26,7 +26,7 @@ region = 4          # Sydney    (radius bounded)
 # region = 5          # all tasmania
 # region = 6          # Perth
 # region = 7          # darwin
-# region = 8          # all ACT
+region = 8          # all ACT
 # region = 9          # all SEQ (brisbane, gold coast, sunshien coast)
 # region = 10          # Adelaide
 

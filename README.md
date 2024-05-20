@@ -36,25 +36,31 @@ To install the RouteZero package complete the following steps:
 git clone git@github.com:bsgip/RouteZero.git
 ```
 
-2. Install the package
-```angular2html
-cd RouteZero
-pip install .
+2. Activate virtual environment
+```
+python3 -m venv venv
+source ./venv/bin/activate
 ```
 
-3. Install the CBC optimisation solver by following the instructions at https://zoomadmin.com/HowToInstall/UbuntuPackage/coinor-cbc
+3. Install the package
+```
+cd RouteZero
+pip install -e .
+```
+
+4. Install the CBC optimisation solver by following the instructions at https://zoomadmin.com/HowToInstall/UbuntuPackage/coinor-cbc
 ```
 sudo apt-get update -y
 sudo apt-get install -y coinor-cbc
 ```
 
-4. (For the webb application) Install dash-blueprint
+5. (For the webb application) Install dash-blueprint
 ```
 pip install -e git+ssh://git@github.com/bsgip/dash-blueprint.git@master#egg=dash_blueprint
 
 ```
 
-5. (Optional) Download preprocessed data files.  Data can be found in the BSGIP onedrive `Documents/12_Major Projects/RouteZero/data`, place the data in `RouteZero/data/`
+6. (Optional) Download preprocessed data files.  Data can be found in the BSGIP onedrive `Documents/12_Major Projects/RouteZero/data`, place the data in `RouteZero/data/`
 
 
 ## Processing GTFS files
