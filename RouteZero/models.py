@@ -298,7 +298,7 @@ class LinearRegressionAbdelatyModel(Model):
     """
     A linear regression model for eBus energy consumption taken from
 
-    Abdelaty, H.; Mohamed, M. APrediction Model for Battery Electric Bus Energy Consumption in Transit.
+    Abdelaty, H.; Mohamed, M. A Prediction Model for Battery Electric Bus Energy Consumption in Transit.
     Energies 2021, 14, 2824. https://doi.org/10.3390/en14102824
 
     model:
