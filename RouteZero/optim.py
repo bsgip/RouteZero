@@ -518,7 +518,8 @@ class Battery_spec_problem(base_problem):
 
 class General_problem(base_problem):
     def __init__(self, trips_data, trips_ec, bus, chargers, grid_limit, Q=0, R=0, start_charge=0.9, final_charge=0.8, deadhead=0.1,
-                 resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None, windows=None):
+                 resolution=10, min_charge_time=60, reserve=0.2, battery=None, num_buses=None, windows=None,
+                 restrict_onsite=True):
 
         """
             Things to optimise:
@@ -530,7 +531,7 @@ class General_problem(base_problem):
         super().__init__(trips_data, trips_ec, bus, chargers, grid_limit=grid_limit, deadhead=deadhead,
                          resolution=resolution, reserve=reserve,
                          min_charge_time=min_charge_time, start_charge=start_charge, final_charge=final_charge,
-                         battery=battery, num_buses=num_buses, windows=windows)
+                         battery=battery, num_buses=num_buses, windows=windows,restrict_onsite=restrict_onsite)
 
         if battery is not None: # cost on battery capacity
             self.bcost = battery['cost']
