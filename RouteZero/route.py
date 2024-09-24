@@ -14,6 +14,9 @@ from sklearn.metrics.pairwise import haversine_distances
 from shapely.geometry import LineString
 
 ## RouteZero modules
+import sys
+sys.path.append('../')
+import RouteZero
 import RouteZero.gtfs as gtfs
 import RouteZero.weather as weather
 
@@ -330,7 +333,8 @@ def offset_shape_geometries(shapes):
 if __name__=="__main__":
     import matplotlib.pyplot as plt
 
-    name = "brisbane_gtfs"
+    # name = "brisbane_gtfs"
+    name = "otago_gtfs"
     inpath = '../data/gtfs/'+name+'.zip'
 
 
