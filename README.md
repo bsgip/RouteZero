@@ -1,7 +1,10 @@
 # RouteZero
 Python package for the RouteZero project. RouteZero provides predictions of electric bus energy usage when 
-undertaking a trip on a specific route and depot charging optimisation. For a detailed description of the project 
-goals, design, and theory see documentation/repord.pdf. 
+undertaking a trip on a specific route and depot charging optimisation. 
+
+This model is presented in the npj Sustainable Mobility and Transport paper: https://doi.org/10.1038/s44333-024-00008-2 
+A detailed description of the project goals, design, and theory is in the User Manual. Both of these documents are in the documentation/ directory of the repository.
+
 
 For the purpose of the describing the code the following definitions are used:
 - A *bus route* is defined as a sequence of bus stops and the path taken between them. A bus might do the same
